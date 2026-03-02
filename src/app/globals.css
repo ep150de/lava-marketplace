@@ -1,0 +1,481 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=VT323&display=swap');
+@import "tailwindcss";
+
+/* ============================================
+   LAVA TERMINAL — Amber CRT Theme
+   A retro 80s/90s terminal UI for the
+   Bitcoin Lava Lamps: Wall of Entropy marketplace
+   ============================================ */
+
+/* --- CSS Custom Properties (White-label friendly) --- */
+:root {
+  --crt: #FFB000;
+  --crt-dim: #996600;
+  --crt-bright: #FFCC00;
+  --crt-bg: #0A0A00;
+  --crt-bg-light: #141400;
+  --crt-error: #FF4400;
+  --crt-border: #664400;
+  --crt-glow: rgba(255, 176, 0, 0.4);
+  --crt-glow-strong: rgba(255, 176, 0, 0.7);
+  --crt-font: 'IBM Plex Mono', 'VT323', 'Courier New', monospace;
+  --background: var(--crt-bg);
+  --foreground: var(--crt);
+}
+
+/* --- Tailwind theme tokens --- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-crt: var(--crt);
+  --color-crt-dim: var(--crt-dim);
+  --color-crt-bright: var(--crt-bright);
+  --color-crt-bg: var(--crt-bg);
+  --color-crt-bg-light: var(--crt-bg-light);
+  --color-crt-error: var(--crt-error);
+  --color-crt-border: var(--crt-border);
+  --font-mono: var(--crt-font);
+}
+
+/* --- Google Fonts (loaded above via @import) --- */
+
+/* --- Base reset --- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--crt-dim) var(--crt-bg);
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--crt-bg);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--crt-dim);
+  border-radius: 0;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--crt);
+}
+
+html {
+  background: #000;
+}
+
+body {
+  background: var(--crt-bg);
+  color: var(--crt);
+  font-family: var(--crt-font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  text-rendering: optimizeSpeed;
+}
+
+::selection {
+  background: var(--crt);
+  color: var(--crt-bg);
+}
+
+/* ============================================
+   CRT MONITOR FRAME
+   ============================================ */
+
+.crt-monitor {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.crt-bezel {
+  position: relative;
+  background: var(--crt-bg);
+  border: 2px solid var(--crt-border);
+  box-shadow:
+    inset 0 0 60px rgba(255, 176, 0, 0.03),
+    0 0 20px rgba(255, 176, 0, 0.05);
+}
+
+.crt-screen {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+}
+
+.crt-content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+/* --- Scanlines --- */
+.crt-scanlines {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    rgba(0, 0, 0, 0.15) 1px,
+    rgba(0, 0, 0, 0.15) 2px
+  );
+}
+
+/* --- Screen flicker --- */
+.crt-flicker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 11;
+  pointer-events: none;
+  animation: crt-flicker 0.15s infinite;
+  opacity: 0;
+}
+
+@keyframes crt-flicker {
+  0% { opacity: 0.02; }
+  5% { opacity: 0; }
+  10% { opacity: 0.01; }
+  15% { opacity: 0; }
+  50% { opacity: 0.02; }
+  80% { opacity: 0; }
+  100% { opacity: 0.01; }
+}
+
+/* --- Pixel grid (subtle dot-matrix effect) --- */
+.crt-pixelgrid {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255, 176, 0, 0.03) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+/* --- Power LED --- */
+.crt-led {
+  position: fixed;
+  bottom: 8px;
+  right: 12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--crt);
+  box-shadow: 0 0 4px var(--crt-glow);
+  z-index: 20;
+  animation: led-pulse 2s ease-in-out infinite;
+}
+
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ============================================
+   TEXT EFFECTS
+   ============================================ */
+
+/* Phosphor glow on text */
+.text-glow {
+  text-shadow:
+    0 0 4px var(--crt-glow),
+    0 0 8px rgba(255, 176, 0, 0.2);
+}
+
+.text-glow-strong {
+  text-shadow:
+    0 0 4px var(--crt-glow),
+    0 0 12px rgba(255, 176, 0, 0.3),
+    0 0 20px rgba(255, 176, 0, 0.15);
+}
+
+/* ASCII art header glow */
+.ascii-glow {
+  text-shadow:
+    0 0 2px var(--crt-glow),
+    0 0 6px rgba(255, 176, 0, 0.25);
+  color: var(--crt-bright);
+}
+
+/* ============================================
+   TERMINAL
+   ============================================ */
+
+.terminal-output {
+  font-family: var(--crt-font);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--crt);
+}
+
+.terminal-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Blinking block cursor */
+.terminal-cursor {
+  display: inline-block;
+  color: var(--crt);
+  animation: cursor-blink 1s step-end infinite;
+  text-shadow: 0 0 4px var(--crt-glow);
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+
+.crt-button {
+  font-family: var(--crt-font);
+  text-shadow: 0 0 4px var(--crt-glow);
+  position: relative;
+}
+
+.crt-button:hover:not(:disabled) {
+  text-shadow:
+    0 0 4px var(--crt-glow),
+    0 0 8px var(--crt-glow);
+  box-shadow: 0 0 8px rgba(255, 176, 0, 0.2);
+}
+
+.crt-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Button spinner */
+.crt-spinner {
+  animation: cursor-blink 0.5s step-end infinite;
+}
+
+/* ============================================
+   INPUTS
+   ============================================ */
+
+.crt-input-group input,
+.crt-input-group textarea {
+  caret-color: var(--crt);
+  text-shadow: 0 0 2px var(--crt-glow);
+}
+
+.crt-input-group input::placeholder,
+.crt-input-group textarea::placeholder {
+  text-shadow: none;
+}
+
+/* ============================================
+   SHADOWS (box-shadow utility)
+   ============================================ */
+
+.shadow-crt {
+  box-shadow:
+    0 0 10px rgba(255, 176, 0, 0.1),
+    0 0 30px rgba(255, 176, 0, 0.05);
+}
+
+.shadow-crt-strong {
+  box-shadow:
+    0 0 10px rgba(255, 176, 0, 0.2),
+    0 0 30px rgba(255, 176, 0, 0.1),
+    0 0 60px rgba(255, 176, 0, 0.05);
+}
+
+/* ============================================
+   LOADING ANIMATIONS
+   ============================================ */
+
+/* Animated dots (...) */
+.crt-dots::after {
+  content: '';
+  animation: crt-dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes crt-dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+/* Progress bar */
+.crt-progress-bar {
+  animation: crt-progress 2s ease-in-out infinite;
+}
+
+@keyframes crt-progress {
+  0% { width: 0%; }
+  50% { width: 80%; }
+  100% { width: 100%; }
+}
+
+/* ============================================
+   LINKS
+   ============================================ */
+
+a {
+  color: var(--crt-bright);
+  text-decoration: none;
+  text-shadow: 0 0 2px var(--crt-glow);
+}
+
+a:hover {
+  color: var(--crt-bright);
+  text-decoration: underline;
+  text-shadow:
+    0 0 4px var(--crt-glow),
+    0 0 8px rgba(255, 176, 0, 0.2);
+}
+
+/* ============================================
+   ASCII ART BORDERS
+   ============================================ */
+
+.ascii-border {
+  border: 1px solid var(--crt-dim);
+  position: relative;
+}
+
+.ascii-border-double {
+  border: 2px solid var(--crt);
+  box-shadow: inset 0 0 0 1px var(--crt-bg), inset 0 0 0 2px var(--crt-dim);
+}
+
+/* ============================================
+   INSCRIPTION CARD
+   ============================================ */
+
+.inscription-card {
+  border: 1px solid var(--crt-dim);
+  background: var(--crt-bg);
+  transition: all 0.15s ease;
+}
+
+.inscription-card:hover {
+  border-color: var(--crt);
+  box-shadow: 0 0 12px rgba(255, 176, 0, 0.15);
+}
+
+.inscription-card .card-image {
+  border-bottom: 1px solid var(--crt-dim);
+  background: var(--crt-bg-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.inscription-card .card-image iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  pointer-events: none;
+}
+
+/* ============================================
+   STATUS BAR
+   ============================================ */
+
+.crt-status-bar {
+  background: var(--crt-bg);
+  font-family: var(--crt-font);
+  text-shadow: 0 0 2px var(--crt-glow);
+}
+
+/* ============================================
+   PAGE TRANSITIONS
+   ============================================ */
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    filter: brightness(2);
+  }
+  to {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+.page-enter {
+  animation: page-fade-in 0.3s ease-out;
+}
+
+/* ============================================
+   BOOT SEQUENCE
+   ============================================ */
+
+@keyframes boot-line {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.boot-line {
+  animation: boot-line 0.1s ease-in forwards;
+  opacity: 0;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  body {
+    font-size: 12px;
+  }
+
+  .crt-scanlines {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1px,
+      rgba(0, 0, 0, 0.1) 1px,
+      rgba(0, 0, 0, 0.1) 2px
+    );
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY: Reduce motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-flicker,
+  .crt-scanlines {
+    display: none;
+  }
+
+  .terminal-cursor {
+    animation: none;
+    opacity: 1;
+  }
+
+  .crt-led {
+    animation: none;
+  }
+
+  .crt-spinner {
+    animation: none;
+  }
+}

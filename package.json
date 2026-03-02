@@ -1,0 +1,33 @@
+{
+  "name": "lava-marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.2.0",
+    "bitcoinjs-lib": "^7.0.1",
+    "buffer": "^6.0.3",
+    "coinselect": "^3.1.13",
+    "ecpair": "^3.0.1",
+    "next": "16.1.6",
+    "nostr-tools": "^2.23.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "sats-connect": "^4.2.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
