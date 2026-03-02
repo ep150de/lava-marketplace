@@ -83,15 +83,30 @@ export async function publishEvent(
   const p = getPool();
   const relays = getRelayUrls();
 
-  const publishPromises = relays.map(async (url) => {
-    try {
-      await p.publish([url], event);
-    } catch (err) {
-      console.warn(`Failed to publish to ${url}:`, err);
-    }
-  });
+  const results = await Promise.allSettled(
+    relays.map(async (url) => {
+      // Race against a 10s timeout per relay
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout publishing to ${url}`)), 10_000)
+      );
+      await Promise.race([p.publish([url], event), timeout]);
+      return url;
+    })
+  );
 
-  await Promise.allSettled(publishPromises);
+  const succeeded = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected");
+  for (const f of failed) {
+    console.warn("Relay publish failed:", (f as PromiseRejectedResult).reason);
+  }
+
+  if (succeeded === 0) {
+    throw new Error(
+      "Failed to publish to any relay. Please check your connection and try again."
+    );
+  }
+
+  console.log(`Published to ${succeeded}/${relays.length} relays`);
   return event;
 }
 
@@ -116,7 +131,14 @@ export async function queryEvents(
   const relays = getRelayUrls();
 
   try {
-    const events = await p.querySync(relays, filter);
+    // Race against a 15s timeout so a dead relay can't hang the UI
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Relay query timed out")), 15_000)
+    );
+    const events = await Promise.race([
+      p.querySync(relays, filter),
+      timeout,
+    ]);
 
     // Deduplicate by event ID
     const seen = new Map<string, NostrEvent>();

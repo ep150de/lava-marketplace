@@ -175,8 +175,8 @@ const config: MarketplaceConfig = {
   nostr: {
     relays: [
       "wss://relay.damus.io",
-      "wss://nos.lol",
-      "wss://relay.nostr.band",
+      "wss://relay.primal.net",
+      "wss://relay.snort.social",
     ],
     eventKind: 30078, // NIP-78 arbitrary custom app data
   },

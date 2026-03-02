@@ -29,7 +29,7 @@ export interface InscriptionUtxo {
   satoshi: number;
   scriptPk: string;
   scriptType: string;
-  inscriptions: InscriptionData[];
+  inscriptions: string[];
 }
 
 export interface AddressUtxo {
@@ -57,16 +57,66 @@ interface PaginatedResponse<T> {
 }
 
 /**
- * Actual Unisat API response shapes — the field names differ from our
- * internal PaginatedResponse. The indexer methods normalize them.
+ * Raw Unisat API inscription shape — the API returns nested utxo objects
+ * and different field names than our internal InscriptionData interface.
  */
+interface UnisatRawInscription {
+  inscriptionId: string;
+  inscriptionNumber: number;
+  address: string;
+  contentType: string;
+  contentLength: number;
+  timestamp: number;
+  offset: number;
+  outSatoshi: number;
+  genesisTransaction?: string;
+  location?: string;
+  output?: string;
+  outputValue?: number;
+  utxo?: {
+    txid: string;
+    vout: number;
+    satoshi: number;
+    scriptPk: string;
+    scriptType: string;
+    codeType: number;
+    address: string;
+    height: number;
+    idx: number;
+    isOpInRBF: boolean;
+    inscriptions: Array<{
+      inscriptionId: string;
+      inscriptionNumber: number;
+      offset: number;
+    }>;
+  };
+}
+
 interface UnisatInscriptionPageResponse {
   cursor: number;
   total: number;
   totalConfirmed: number;
   totalUnconfirmed: number;
   totalUnconfirmedSpend: number;
-  inscription: Array<Record<string, unknown>>;
+  inscription: UnisatRawInscription[];
+}
+
+interface UnisatUtxoItem {
+  txid: string;
+  vout: number;
+  satoshi: number;
+  scriptPk: string;
+  scriptType: string;
+  codeType: number;
+  address: string;
+  height: number;
+  idx: number;
+  isOpInRBF: boolean;
+  inscriptions: Array<{
+    inscriptionId: string;
+    inscriptionNumber: number;
+    offset: number;
+  }>;
 }
 
 interface UnisatInscriptionUtxoPageResponse {
@@ -75,7 +125,35 @@ interface UnisatInscriptionUtxoPageResponse {
   totalConfirmed: number;
   totalUnconfirmed: number;
   totalUnconfirmedSpend: number;
-  utxo: Array<Record<string, unknown>>;
+  utxo: UnisatUtxoItem[];
+}
+
+/**
+ * Normalize a raw Unisat API inscription object to our InscriptionData interface.
+ * The API uses nested utxo objects and different field names.
+ */
+function normalizeInscription(raw: UnisatRawInscription): InscriptionData {
+  const txid = raw.utxo?.txid || "";
+  const vout = raw.utxo?.vout ?? 0;
+  const offset = raw.offset ?? 0;
+
+  return {
+    inscriptionId: raw.inscriptionId,
+    inscriptionNumber: raw.inscriptionNumber,
+    address: raw.address,
+    outputValue: raw.outputValue ?? raw.utxo?.satoshi ?? raw.outSatoshi ?? 0,
+    contentType: raw.contentType,
+    contentLength: raw.contentLength,
+    timestamp: raw.timestamp,
+    genesisTransaction:
+      raw.genesisTransaction ||
+      raw.inscriptionId.substring(0, raw.inscriptionId.lastIndexOf("i")),
+    location: raw.location || `${txid}:${vout}:${offset}`,
+    output: raw.output || `${txid}:${vout}`,
+    offset,
+    contentUrl: `https://ordinals.com/content/${raw.inscriptionId}`,
+    preview: `https://ordinals.com/preview/${raw.inscriptionId}`,
+  };
 }
 
 class OrdinalsIndexer {
@@ -117,25 +195,10 @@ class OrdinalsIndexer {
    * Get inscription info by ID
    */
   async getInscription(inscriptionId: string): Promise<InscriptionData> {
-    const data = await this.fetch<{
-      inscriptionId: string;
-      inscriptionNumber: number;
-      address: string;
-      outputValue: number;
-      contentType: string;
-      contentLength: number;
-      timestamp: number;
-      genesisTransaction: string;
-      location: string;
-      output: string;
-      offset: number;
-    }>(`/v1/indexer/inscription/info/${inscriptionId}`);
-
-    return {
-      ...data,
-      contentUrl: `https://ordinals.com/content/${inscriptionId}`,
-      preview: `https://ordinals.com/preview/${inscriptionId}`,
-    };
+    const raw = await this.fetch<UnisatRawInscription>(
+      `/v1/indexer/inscription/info/${inscriptionId}`
+    );
+    return normalizeInscription(raw);
   }
 
   /**
@@ -150,7 +213,7 @@ class OrdinalsIndexer {
       `/v1/indexer/address/${address}/inscription-data?cursor=${cursor}&size=${size}`
     );
     return {
-      list: (data.inscription || []) as unknown as InscriptionData[],
+      list: (data.inscription || []).map(normalizeInscription),
       total: data.total,
     };
   }
@@ -167,7 +230,14 @@ class OrdinalsIndexer {
       `/v1/indexer/address/${address}/inscription-utxo-data?cursor=${cursor}&size=${size}`
     );
     return {
-      list: (data.utxo || []) as unknown as InscriptionUtxo[],
+      list: (data.utxo || []).map((u) => ({
+        txid: u.txid,
+        vout: u.vout,
+        satoshi: u.satoshi,
+        scriptPk: u.scriptPk,
+        scriptType: u.scriptType,
+        inscriptions: (u.inscriptions || []).map((ins) => ins.inscriptionId),
+      })),
       total: data.total,
     };
   }
