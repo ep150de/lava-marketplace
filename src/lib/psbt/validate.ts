@@ -95,11 +95,15 @@ export function validateListingPsbt(params: {
 }): { valid: boolean; error?: string } {
   const { ordinalUtxoValue, inscriptionOffset, listingPriceSats, sellerAddress } = params;
 
-  // Check ordinal UTXO has enough value
-  if (ordinalUtxoValue < DUST_LIMIT) {
+  // Check ordinal UTXO has a non-zero value.
+  // Note: Many inscriptions live in sub-dust UTXOs (< 546 sats). This is
+  // valid on-chain — the dust limit only applies to *new* outputs. The buyer's
+  // inscription output uses INSCRIPTION_OUTPUT_VALUE (10,000 sats) so the
+  // completed transaction will always be above dust.
+  if (ordinalUtxoValue < 1) {
     return {
       valid: false,
-      error: `Ordinal UTXO value (${ordinalUtxoValue}) is below dust limit (${DUST_LIMIT})`,
+      error: `Ordinal UTXO has no value (${ordinalUtxoValue} sats)`,
     };
   }
 
