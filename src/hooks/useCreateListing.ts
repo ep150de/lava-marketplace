@@ -8,12 +8,12 @@ import {
   deriveNostrKeypair,
   getNostrKeyDerivationMessage,
 } from "@/lib/nostr";
-import { parseSatpoint } from "@/lib/ordinals";
+import { parseSatpoint, isCollectionInscription } from "@/lib/ordinals";
 import type { InscriptionData } from "@/lib/ordinals";
 import config from "../../marketplace.config";
 
 export interface CreateListingState {
-  step: "idle" | "signing-nostr" | "creating-psbt" | "signing-psbt" | "publishing" | "complete" | "error";
+  step: "idle" | "validating-collection" | "signing-nostr" | "creating-psbt" | "signing-psbt" | "publishing" | "complete" | "error";
   error?: string;
   txid?: string;
   eventId?: string;
@@ -34,6 +34,17 @@ export function useCreateListing() {
       }
 
       try {
+        // Step 0: Validate collection membership via provenance
+        setState({ step: "validating-collection" });
+        const isCollection = await isCollectionInscription(inscription);
+        if (!isCollection) {
+          setState({
+            step: "error",
+            error: "This inscription is not part of the Lava Lamps collection. Only verified grandchild inscriptions with valid parent provenance can be listed.",
+          });
+          return;
+        }
+
         // Step 1: Derive Nostr keypair from BTC signature
         setState({ step: "signing-nostr" });
         const nostrMessage = getNostrKeyDerivationMessage();

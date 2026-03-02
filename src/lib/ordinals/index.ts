@@ -1,6 +1,8 @@
 export { indexer } from "./indexer";
 export type { InscriptionData, InscriptionUtxo, AddressUtxo } from "./indexer";
 export {
+  isCollectionInscription,
+  clearCollectionCache,
   getCollectionInscriptionsForAddress,
   getInscriptionDetails,
   parseSatpoint,

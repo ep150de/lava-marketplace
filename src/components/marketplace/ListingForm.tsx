@@ -45,6 +45,7 @@ export default function ListingForm({
 
   const stepMessages: Record<CreateListingState["step"], string> = {
     idle: "",
+    "validating-collection": "> VERIFYING COLLECTION PROVENANCE...",
     "signing-nostr": "> SIGN MESSAGE TO DERIVE NOSTR IDENTITY...",
     "creating-psbt": "> CONSTRUCTING LISTING PSBT...",
     "signing-psbt": "> SIGN THE LISTING TRANSACTION IN YOUR WALLET...",
