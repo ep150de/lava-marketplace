@@ -27,17 +27,18 @@ function deduplicateListings(listings: ListingWithNostr[]): ListingWithNostr[] {
 
 /**
  * Parse raw Nostr events into ListingWithNostr[], silently skipping unparseable events.
+ * When collectionSlug is null, all collections are returned (no client-side filtering).
  */
 function parseEvents(
   events: Array<{ content: string; tags: string[][]; created_at: number; pubkey: string; id: string }>,
-  collectionSlug: string
+  collectionSlug: string | null
 ): ListingWithNostr[] {
   return events
     .map((event) => {
       try {
         const listing = parseListingEvent(event);
-        // Client-side filter: ensure the listing belongs to this collection
-        if (listing.collectionSlug !== collectionSlug) return null;
+        // Client-side filter: ensure the listing belongs to this collection (skip if null = show all)
+        if (collectionSlug && listing.collectionSlug !== collectionSlug) return null;
         return listing;
       } catch {
         return null;
@@ -55,7 +56,7 @@ function parseEvents(
  * relays that don't support multi-letter custom tag filters like `#collection`.
  */
 export async function queryListings(
-  collectionSlug: string,
+  collectionSlug: string | null,
   options: {
     limit?: number;
     since?: number;

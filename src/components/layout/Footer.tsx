@@ -11,10 +11,11 @@ export default function Footer({ className = "" }: FooterProps) {
   return (
     <footer className={`font-mono text-xs text-crt-dim border-t border-crt-dim ${className}`}>
       <div className="px-4 py-3 space-y-2">
-        {/* Separator */}
-        <div className="text-center text-crt-border">
+        {/* Separator — ASCII on sm+, CSS border on mobile */}
+        <div className="hidden sm:block text-center text-crt-border">
           ════════════════════════════════════════════════════
         </div>
+        <div className="block sm:hidden border-t border-crt-border" />
 
         {/* Info */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">

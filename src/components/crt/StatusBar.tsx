@@ -35,34 +35,36 @@ export default function StatusBar({
       className={`crt-status-bar border-t-2 border-crt px-3 py-1 flex items-center justify-between font-mono text-xs ${className}`}
     >
       {/* Left side — wallet info */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
         {connected && walletAddress ? (
           <>
-            <span className="text-crt-dim">WALLET:</span>
-            <span className="text-crt">
+            <span className="text-crt-dim hidden sm:inline">WALLET:</span>
+            <span className="text-crt truncate">
               {truncateAddress(walletAddress)}
             </span>
             {walletType && (
-              <span className="text-crt-dim">
+              <span className="text-crt-dim hidden sm:inline">
                 ({walletType.toUpperCase()})
               </span>
             )}
-            <span className="text-green-500">CONNECTED</span>
+            <span className="text-green-500">●</span>
           </>
         ) : (
-          <span className="text-crt-dim">WALLET: NOT CONNECTED</span>
+          <span className="text-crt-dim">
+            <span className="hidden sm:inline">WALLET: </span>NOT CONNECTED
+          </span>
         )}
       </div>
 
-      {/* Right side — network info */}
-      <div className="flex items-center gap-4">
+      {/* Right side — network info (BLOCK and NETWORK hidden on mobile) */}
+      <div className="flex items-center gap-2 sm:gap-4">
         {blockHeight && (
-          <>
+          <span className="hidden sm:flex items-center gap-1">
             <span className="text-crt-dim">BLOCK:</span>
             <span className="text-crt">{blockHeight.toLocaleString()}</span>
-          </>
+          </span>
         )}
-        <span className="text-crt-dim">{network}</span>
+        <span className="text-crt-dim hidden sm:inline">{network}</span>
         <span className="text-crt-dim">{clock}</span>
       </div>
     </div>

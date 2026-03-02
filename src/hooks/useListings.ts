@@ -6,17 +6,20 @@ import { verifyUtxoUnspent } from "@/lib/psbt";
 import config from "../../marketplace.config";
 
 /**
- * Hook for fetching and managing active listings from Nostr relays
+ * Hook for fetching and managing active listings from Nostr relays.
+ * @param collectionFilter - "all" to show all collections, or a specific slug (defaults to config slug)
  */
-export function useListings() {
+export function useListings(collectionFilter?: "all" | string) {
   const [listings, setListings] = useState<ListingWithNostr[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const slug = collectionFilter === "all" ? null : (collectionFilter ?? config.collection.slug);
+
   const fetchListings = useCallback(async () => {
     try {
       setError(null);
-      const results = await queryListings(config.collection.slug);
+      const results = await queryListings(slug);
       setListings(results);
     } catch (err) {
       console.error("Failed to fetch listings:", err);
@@ -24,7 +27,7 @@ export function useListings() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [slug]);
 
   // Initial fetch
   useEffect(() => {

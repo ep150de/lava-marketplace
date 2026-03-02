@@ -12,6 +12,8 @@ interface GalleryProps {
   loading?: boolean;
   error?: string | null;
   onItemClick?: (inscriptionId: string) => void;
+  collectionFilter?: "lava-lamps" | "all";
+  onCollectionFilterChange?: (filter: "lava-lamps" | "all") => void;
   className?: string;
 }
 
@@ -21,6 +23,8 @@ export default function Gallery({
   loading = false,
   error = null,
   onItemClick,
+  collectionFilter = "lava-lamps",
+  onCollectionFilterChange,
   className = "",
 }: GalleryProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -68,12 +72,37 @@ export default function Gallery({
   return (
     <div className={`${className}`}>
       {/* Controls bar */}
-      <div className="flex items-center justify-between mb-4 pb-2 border-b border-crt-border">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pb-2 border-b border-crt-border">
         <div className="font-mono text-xs text-crt-dim">
           {sortedListings.length} LISTED
         </div>
 
-        <div className="flex items-center gap-3 font-mono text-xs">
+        <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
+          {/* Collection filter */}
+          {onCollectionFilterChange && (
+            <div className="flex items-center gap-1">
+              <span className="text-crt-dim">COLLECTION:</span>
+              {(
+                [
+                  { key: "lava-lamps", label: "LAVA LAMPS" },
+                  { key: "all", label: "ALL" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => onCollectionFilterChange(opt.key)}
+                  className={`px-1.5 py-0.5 cursor-pointer ${
+                    collectionFilter === opt.key
+                      ? "bg-crt text-crt-bg"
+                      : "text-crt-dim hover:text-crt"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Sort */}
           <div className="flex items-center gap-1">
             <span className="text-crt-dim">SORT:</span>

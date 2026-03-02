@@ -14,7 +14,10 @@ import config from "../../marketplace.config";
 export default function HomePage() {
   const router = useRouter();
   const { connected } = useWallet();
-  const { listings, loading, error, refreshListings } = useListings();
+  const [collectionFilter, setCollectionFilter] = useState<"lava-lamps" | "all">("lava-lamps");
+  const { listings, loading, error, refreshListings } = useListings(
+    collectionFilter === "all" ? "all" : config.collection.slug
+  );
   const { inscriptions } = useInscriptions();
   const { blockHeight, btcPrice } = useMarketplaceContext();
 
@@ -51,8 +54,8 @@ export default function HomePage() {
     <div className="space-y-6">
       {/* Collection stats bar */}
       <div className="border border-crt-border p-3 font-mono">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <div>
               <span className="text-crt-dim">COLLECTION: </span>
               <span className="text-crt-bright">{config.collection.name.toUpperCase()}</span>
@@ -62,7 +65,7 @@ export default function HomePage() {
               <span className="text-crt">{config.collection.totalSupply.toLocaleString()}</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <div>
               <span className="text-crt-dim">LISTED: </span>
               <span className="text-crt">{totalListings}</span>
@@ -76,13 +79,13 @@ export default function HomePage() {
               </span>
             </div>
             {btcPrice && (
-              <div>
+              <div className="hidden sm:block">
                 <span className="text-crt-dim">BTC/USD: </span>
                 <span className="text-crt">${btcPrice.toLocaleString()}</span>
               </div>
             )}
             {blockHeight && (
-              <div>
+              <div className="hidden sm:block">
                 <span className="text-crt-dim">BLOCK: </span>
                 <span className="text-crt">{blockHeight.toLocaleString()}</span>
               </div>
@@ -107,7 +110,8 @@ export default function HomePage() {
       <div>
         <div className="border-t border-crt-dim py-1 px-1 mb-3">
           <span className="text-crt-dim text-xs font-mono">
-            ─── ACTIVE LISTINGS ─────────────────────────────────
+            <span className="hidden sm:inline">─── ACTIVE LISTINGS ─────────────────────────────────</span>
+            <span className="inline sm:hidden">── ACTIVE LISTINGS ──</span>
           </span>
         </div>
         <Gallery
@@ -116,6 +120,8 @@ export default function HomePage() {
           loading={loading}
           error={error}
           onItemClick={handleItemClick}
+          collectionFilter={collectionFilter}
+          onCollectionFilterChange={setCollectionFilter}
         />
       </div>
 
