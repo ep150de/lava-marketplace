@@ -2,7 +2,20 @@
 
 import React, { useState, useEffect } from "react";
 import { Button, Input, TextArea } from "@/components/crt";
+import { useWallet } from "@/hooks/useWallet";
 import config, { type MarketplaceConfig } from "../../../marketplace.config";
+
+/**
+ * Check if an address is in the admin allowlist.
+ * Compares against both ordinals and payment addresses.
+ */
+function isAdminAddress(address: string | null): boolean {
+  if (!address) return false;
+  const adminList = config.marketplace.adminAddresses || [];
+  return adminList.some(
+    (admin) => admin.toLowerCase() === address.toLowerCase()
+  );
+}
 
 const ADMIN_STORAGE_KEY = "lava-marketplace-admin-overrides";
 
@@ -16,6 +29,10 @@ type ConfigOverrides = Partial<{
 }>;
 
 export default function AdminPage() {
+  const { connected, ordinalsAddress, paymentAddress } = useWallet();
+  const isAdmin =
+    isAdminAddress(ordinalsAddress) || isAdminAddress(paymentAddress);
+
   const [overrides, setOverrides] = useState<ConfigOverrides>({});
   const [activeTab, setActiveTab] = useState<
     "collection" | "marketplace" | "theme" | "nostr" | "indexer" | "export"
@@ -34,6 +51,56 @@ export default function AdminPage() {
       // ignore
     }
   }, []);
+
+  // Access denied screen
+  if (!connected) {
+    return (
+      <div className="space-y-4 font-mono max-w-3xl mx-auto py-12 text-center">
+        <div className="border border-crt-border p-6">
+          <pre className="text-crt-dim text-xs leading-tight mb-4">
+{`
+  ┌──────────────────────────────────┐
+  │                                  │
+  │   ADMIN PANEL                    │
+  │                                  │
+  │   WALLET CONNECTION REQUIRED     │
+  │                                  │
+  └──────────────────────────────────┘
+`}
+          </pre>
+          <div className="text-crt-dim text-xs">
+            CONNECT AN AUTHORIZED WALLET TO ACCESS THE ADMIN PANEL
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-4 font-mono max-w-3xl mx-auto py-12 text-center">
+        <div className="border border-crt-error/50 p-6">
+          <pre className="text-crt-error text-xs leading-tight mb-4">
+{`
+  ┌──────────────────────────────────┐
+  │                                  │
+  │   ACCESS DENIED                  │
+  │                                  │
+  │   UNAUTHORIZED WALLET ADDRESS    │
+  │                                  │
+  └──────────────────────────────────┘
+`}
+          </pre>
+          <div className="text-crt-dim text-xs">
+            THIS WALLET IS NOT AUTHORIZED FOR ADMIN ACCESS
+          </div>
+          <div className="text-crt-border text-[10px] mt-2">
+            {ordinalsAddress?.slice(0, 12)}...{ordinalsAddress?.slice(-8)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Get merged config
   const merged: MarketplaceConfig = {

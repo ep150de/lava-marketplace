@@ -15,6 +15,7 @@ export interface MarketplaceConfig {
     feeAddress: string;
     minListingPriceSats: number;
     network: "mainnet" | "testnet" | "signet";
+    adminAddresses: string[];
   };
   theme: {
     variant: "amber" | "green" | "blue" | "custom";
@@ -155,6 +156,9 @@ const config: MarketplaceConfig = {
     feeAddress: "bc1pp8jjn7mhyqzp2qs3jahl848kw2v9lhupu7fdavs9wc3tx4tkja6qd3pfyx",
     minListingPriceSats: 10000,
     network: "mainnet",
+    adminAddresses: [
+      "bc1pp8jjn7mhyqzp2qs3jahl848kw2v9lhupu7fdavs9wc3tx4tkja6qd3pfyx",
+    ],
   },
 
   theme: {

@@ -3,14 +3,25 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useWallet } from "@/hooks/useWallet";
+import config from "../../../marketplace.config";
 
-const NAV_ITEMS = [
+const PUBLIC_NAV_ITEMS = [
   { href: "/", label: "GALLERY", key: "gallery" },
   { href: "/my-listings", label: "MY LAMPS", key: "my-listings" },
   { href: "/activity", label: "ACTIVITY", key: "activity" },
   { href: "/about", label: "ABOUT", key: "about" },
-  { href: "/admin", label: "ADMIN", key: "admin" },
 ];
+
+const ADMIN_NAV_ITEM = { href: "/admin", label: "ADMIN", key: "admin" };
+
+function isAdminAddress(address: string | null): boolean {
+  if (!address) return false;
+  const adminList = config.marketplace.adminAddresses || [];
+  return adminList.some(
+    (admin) => admin.toLowerCase() === address.toLowerCase()
+  );
+}
 
 interface NavProps {
   className?: string;
@@ -18,11 +29,18 @@ interface NavProps {
 
 export default function Nav({ className = "" }: NavProps) {
   const pathname = usePathname();
+  const { ordinalsAddress, paymentAddress } = useWallet();
+  const isAdmin =
+    isAdminAddress(ordinalsAddress) || isAdminAddress(paymentAddress);
+
+  const navItems = isAdmin
+    ? [...PUBLIC_NAV_ITEMS, ADMIN_NAV_ITEM]
+    : PUBLIC_NAV_ITEMS;
 
   return (
     <nav className={`font-mono ${className}`}>
       <div className="border-y border-crt-dim py-1.5 px-3 flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
-        {NAV_ITEMS.map((item, idx) => {
+        {navItems.map((item, idx) => {
           const isActive =
             item.href === "/"
               ? pathname === "/"

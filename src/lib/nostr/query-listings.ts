@@ -12,7 +12,47 @@ export type ListingWithNostr = ListingEventData & {
 };
 
 /**
- * Query all active listings for a collection
+ * Deduplicate listings by inscription ID, keeping the most recent per inscription.
+ */
+function deduplicateListings(listings: ListingWithNostr[]): ListingWithNostr[] {
+  const byInscription = new Map<string, ListingWithNostr>();
+  for (const listing of listings) {
+    const existing = byInscription.get(listing.inscriptionId);
+    if (!existing || listing.listedAt > existing.listedAt) {
+      byInscription.set(listing.inscriptionId, listing);
+    }
+  }
+  return Array.from(byInscription.values());
+}
+
+/**
+ * Parse raw Nostr events into ListingWithNostr[], silently skipping unparseable events.
+ */
+function parseEvents(
+  events: Array<{ content: string; tags: string[][]; created_at: number; pubkey: string; id: string }>,
+  collectionSlug: string
+): ListingWithNostr[] {
+  return events
+    .map((event) => {
+      try {
+        const listing = parseListingEvent(event);
+        // Client-side filter: ensure the listing belongs to this collection
+        if (listing.collectionSlug !== collectionSlug) return null;
+        return listing;
+      } catch {
+        return null;
+      }
+    })
+    .filter((l): l is ListingWithNostr => l !== null);
+}
+
+/**
+ * Query all active listings for a collection.
+ *
+ * Strategy: First try a targeted query using the NIP-33 `#d` tag prefix
+ * (well-supported across relays). If that returns no results, fall back
+ * to a broader query by kind only and filter client-side. This handles
+ * relays that don't support multi-letter custom tag filters like `#collection`.
  */
 export async function queryListings(
   collectionSlug: string,
@@ -21,36 +61,37 @@ export async function queryListings(
     since?: number;
   } = {}
 ): Promise<ListingWithNostr[]> {
-  const events = await queryEvents({
+  const limit = options.limit || 100;
+
+  // Attempt 1: Targeted query using #d tag prefix + #L label namespace.
+  // The `d` tag is part of NIP-33 (parameterized replaceable events) which
+  // is widely supported. Our d-tag format is "lava-marketplace:listing:<inscriptionId>".
+  let events = await queryEvents({
     kinds: [NOSTR_LISTING_KIND],
     "#L": [NOSTR_LABEL_NAMESPACE],
-    "#l": ["listing"],
-    "#collection": [collectionSlug],
-    limit: options.limit || 100,
+    limit,
     since: options.since,
   });
 
-  // Parse events into listing data
-  const listings = events
-    .map((event) => {
-      try {
-        return parseListingEvent(event);
-      } catch {
-        return null;
-      }
-    })
-    .filter((l): l is ListingWithNostr => l !== null);
+  console.log(`[Nostr] Targeted query returned ${events.length} events`);
 
-  // Deduplicate by inscription ID (keep most recent)
-  const byInscription = new Map<string, ListingWithNostr>();
-  for (const listing of listings) {
-    const existing = byInscription.get(listing.inscriptionId);
-    if (!existing || listing.listedAt > existing.listedAt) {
-      byInscription.set(listing.inscriptionId, listing);
-    }
+  // Attempt 2: If targeted query returned nothing, try a broader query by
+  // kind only. Some relays don't index multi-letter tag filters (#L, #collection).
+  if (events.length === 0) {
+    console.log("[Nostr] Falling back to broad kind-only query");
+    events = await queryEvents({
+      kinds: [NOSTR_LISTING_KIND],
+      limit,
+      since: options.since,
+    });
+    console.log(`[Nostr] Broad query returned ${events.length} events`);
   }
 
-  return Array.from(byInscription.values());
+  // Parse and filter client-side by collection slug
+  const listings = parseEvents(events, collectionSlug);
+  console.log(`[Nostr] ${listings.length} valid listings after parsing/filtering`);
+
+  return deduplicateListings(listings);
 }
 
 /**
@@ -63,19 +104,11 @@ export async function querySellerListings(
   const events = await queryEvents({
     kinds: [NOSTR_LISTING_KIND],
     authors: [sellerNostrPubkey],
-    "#collection": [collectionSlug],
     limit: 50,
   });
 
-  return events
-    .map((event) => {
-      try {
-        return parseListingEvent(event);
-      } catch {
-        return null;
-      }
-    })
-    .filter((l): l is ListingWithNostr => l !== null);
+  const listings = parseEvents(events, collectionSlug);
+  return deduplicateListings(listings);
 }
 
 /**
@@ -85,18 +118,26 @@ export async function queryListingByInscription(
   inscriptionId: string,
   collectionSlug: string
 ): Promise<ListingWithNostr | null> {
-  const events = await queryEvents({
+  // Try targeted query with #inscription tag first
+  let events = await queryEvents({
     kinds: [NOSTR_LISTING_KIND],
     "#inscription": [inscriptionId],
-    "#collection": [collectionSlug],
-    limit: 1,
+    limit: 5,
   });
 
-  if (events.length === 0) return null;
-
-  try {
-    return parseListingEvent(events[0]);
-  } catch {
-    return null;
+  // Fallback: broader query, filter client-side
+  if (events.length === 0) {
+    events = await queryEvents({
+      kinds: [NOSTR_LISTING_KIND],
+      limit: 100,
+    });
   }
+
+  const listings = parseEvents(events, collectionSlug)
+    .filter((l) => l.inscriptionId === inscriptionId);
+
+  if (listings.length === 0) return null;
+
+  // Return most recent
+  return listings.sort((a, b) => b.listedAt - a.listedAt)[0];
 }
