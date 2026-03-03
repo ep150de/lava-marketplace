@@ -26,8 +26,44 @@ function deduplicateListings(listings: ListingWithNostr[]): ListingWithNostr[] {
 }
 
 /**
+ * Check if a raw Nostr event has a "cancelled" status tag.
+ * This is set by our NIP-33 replacement cancellation mechanism.
+ */
+function isCancelledEvent(event: { tags: string[][] }): boolean {
+  return event.tags.some(
+    (t) => t[0] === "status" && t[1] === "cancelled"
+  );
+}
+
+/**
+ * Check if a raw Nostr event has empty content (cancelled replacement events
+ * have empty PSBT content).
+ */
+function hasEmptyContent(event: { content: string }): boolean {
+  return !event.content || event.content.trim() === "";
+}
+
+/**
+ * Collect event IDs that have been deleted via NIP-09 (kind 5) events.
+ */
+function collectDeletedEventIds(
+  deletionEvents: Array<{ tags: string[][] }>
+): Set<string> {
+  const deleted = new Set<string>();
+  for (const event of deletionEvents) {
+    for (const tag of event.tags) {
+      if (tag[0] === "e" && tag[1]) {
+        deleted.add(tag[1]);
+      }
+    }
+  }
+  return deleted;
+}
+
+/**
  * Parse raw Nostr events into ListingWithNostr[], silently skipping unparseable events.
  * When collectionSlug is null, all collections are returned (no client-side filtering).
+ * Filters out events that are cancelled (status tag) or have empty content.
  */
 function parseEvents(
   events: Array<{ content: string; tags: string[][]; created_at: number; pubkey: string; id: string }>,
@@ -36,6 +72,9 @@ function parseEvents(
   return events
     .map((event) => {
       try {
+        // Skip cancelled NIP-33 replacement events
+        if (isCancelledEvent(event) || hasEmptyContent(event)) return null;
+
         const listing = parseListingEvent(event);
         // Client-side filter: ensure the listing belongs to this collection (skip if null = show all)
         if (collectionSlug && listing.collectionSlug !== collectionSlug) return null;
@@ -48,12 +87,41 @@ function parseEvents(
 }
 
 /**
+ * Query NIP-09 deletion events from the same relays.
+ * Returns a set of event IDs that have been marked for deletion.
+ */
+async function fetchDeletedEventIds(): Promise<Set<string>> {
+  try {
+    const deletionEvents = await queryEvents({
+      kinds: [5],
+      "#L": [NOSTR_LABEL_NAMESPACE],
+      limit: 200,
+    });
+
+    // If targeted query returns nothing, try broad fallback
+    if (deletionEvents.length === 0) {
+      const broadDeletions = await queryEvents({
+        kinds: [5],
+        limit: 200,
+      });
+      return collectDeletedEventIds(broadDeletions);
+    }
+
+    return collectDeletedEventIds(deletionEvents);
+  } catch (err) {
+    console.warn("[Nostr] Failed to fetch deletion events:", err);
+    return new Set();
+  }
+}
+
+/**
  * Query all active listings for a collection.
  *
- * Strategy: First try a targeted query using the NIP-33 `#d` tag prefix
- * (well-supported across relays). If that returns no results, fall back
- * to a broader query by kind only and filter client-side. This handles
- * relays that don't support multi-letter custom tag filters like `#collection`.
+ * Strategy:
+ * 1. Query kind 30078 listing events (targeted #L filter, then broad fallback)
+ * 2. Query kind 5 deletion events to build a set of deleted event IDs
+ * 3. Filter out: cancelled events (status tag), empty content, and NIP-09 deleted events
+ * 4. Deduplicate by inscription ID, keeping most recent
  */
 export async function queryListings(
   collectionSlug: string | null,
@@ -64,33 +132,49 @@ export async function queryListings(
 ): Promise<ListingWithNostr[]> {
   const limit = options.limit || 100;
 
-  // Attempt 1: Targeted query using #d tag prefix + #L label namespace.
-  // The `d` tag is part of NIP-33 (parameterized replaceable events) which
-  // is widely supported. Our d-tag format is "lava-marketplace:listing:<inscriptionId>".
-  let events = await queryEvents({
-    kinds: [NOSTR_LISTING_KIND],
-    "#L": [NOSTR_LABEL_NAMESPACE],
-    limit,
-    since: options.since,
-  });
+  // Fetch listings and deletion events in parallel
+  const [listingEvents, deletedIds] = await Promise.all([
+    (async () => {
+      // Attempt 1: Targeted query using #L label namespace
+      let events = await queryEvents({
+        kinds: [NOSTR_LISTING_KIND],
+        "#L": [NOSTR_LABEL_NAMESPACE],
+        limit,
+        since: options.since,
+      });
 
-  console.log(`[Nostr] Targeted query returned ${events.length} events`);
+      console.log(`[Nostr] Targeted query returned ${events.length} events`);
 
-  // Attempt 2: If targeted query returned nothing, try a broader query by
-  // kind only. Some relays don't index multi-letter tag filters (#L, #collection).
-  if (events.length === 0) {
-    console.log("[Nostr] Falling back to broad kind-only query");
-    events = await queryEvents({
-      kinds: [NOSTR_LISTING_KIND],
-      limit,
-      since: options.since,
-    });
-    console.log(`[Nostr] Broad query returned ${events.length} events`);
+      // Attempt 2: Broad fallback by kind only
+      if (events.length === 0) {
+        console.log("[Nostr] Falling back to broad kind-only query");
+        events = await queryEvents({
+          kinds: [NOSTR_LISTING_KIND],
+          limit,
+          since: options.since,
+        });
+        console.log(`[Nostr] Broad query returned ${events.length} events`);
+      }
+
+      return events;
+    })(),
+    fetchDeletedEventIds(),
+  ]);
+
+  // Parse events, filtering out cancelled/empty ones
+  let listings = parseEvents(listingEvents, collectionSlug);
+
+  // Filter out NIP-09 deleted listings
+  if (deletedIds.size > 0) {
+    const before = listings.length;
+    listings = listings.filter((l) => !deletedIds.has(l.nostrEventId));
+    const removed = before - listings.length;
+    if (removed > 0) {
+      console.log(`[Nostr] Filtered out ${removed} NIP-09 deleted listings`);
+    }
   }
 
-  // Parse and filter client-side by collection slug
-  const listings = parseEvents(events, collectionSlug);
-  console.log(`[Nostr] ${listings.length} valid listings after parsing/filtering`);
+  console.log(`[Nostr] ${listings.length} active listings after filtering`);
 
   return deduplicateListings(listings);
 }
@@ -102,13 +186,17 @@ export async function querySellerListings(
   sellerNostrPubkey: string,
   collectionSlug: string
 ): Promise<ListingWithNostr[]> {
-  const events = await queryEvents({
-    kinds: [NOSTR_LISTING_KIND],
-    authors: [sellerNostrPubkey],
-    limit: 50,
-  });
+  const [events, deletedIds] = await Promise.all([
+    queryEvents({
+      kinds: [NOSTR_LISTING_KIND],
+      authors: [sellerNostrPubkey],
+      limit: 50,
+    }),
+    fetchDeletedEventIds(),
+  ]);
 
-  const listings = parseEvents(events, collectionSlug);
+  let listings = parseEvents(events, collectionSlug);
+  listings = listings.filter((l) => !deletedIds.has(l.nostrEventId));
   return deduplicateListings(listings);
 }
 
@@ -134,8 +222,11 @@ export async function queryListingByInscription(
     });
   }
 
+  const deletedIds = await fetchDeletedEventIds();
+
   const listings = parseEvents(events, collectionSlug)
-    .filter((l) => l.inscriptionId === inscriptionId);
+    .filter((l) => l.inscriptionId === inscriptionId)
+    .filter((l) => !deletedIds.has(l.nostrEventId));
 
   if (listings.length === 0) return null;
 

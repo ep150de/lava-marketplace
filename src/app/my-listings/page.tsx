@@ -53,8 +53,8 @@ export default function MyListingsPage() {
       });
       const { privateKey } = deriveNostrKeypair(signature);
 
-      // Publish cancellation
-      await cancelListing(listing.nostrEventId, listing.inscriptionId, privateKey);
+      // Publish cancellation (NIP-33 replacement + NIP-09 deletion)
+      await cancelListing(listing.nostrEventId, listing.inscriptionId, listing.collectionSlug, privateKey);
 
       // Refresh listings
       await refreshListings();

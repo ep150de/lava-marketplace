@@ -99,4 +99,26 @@ export function buildCancellationTags(
   ];
 }
 
+/**
+ * Build a NIP-33 replacement event that supersedes the original listing.
+ * Since kind 30078 is a parameterized replaceable event (kind 30000-39999),
+ * publishing a new event with the same `d` tag from the same pubkey causes
+ * relays to replace the old event automatically. This is more reliable than
+ * NIP-09 deletion which is merely advisory.
+ */
+export function buildCancellationReplacementTags(
+  inscriptionId: string,
+  collectionSlug: string
+): string[][] {
+  return [
+    // Same d-tag as the original listing — triggers NIP-33 replacement
+    ["d", `${NOSTR_LABEL_NAMESPACE}:listing:${inscriptionId}`],
+    ["L", NOSTR_LABEL_NAMESPACE],
+    ["l", "cancellation", NOSTR_LABEL_NAMESPACE],
+    ["status", "cancelled"],
+    ["collection", collectionSlug],
+    ["inscription", inscriptionId],
+  ];
+}
+
 export { NOSTR_LISTING_KIND };
