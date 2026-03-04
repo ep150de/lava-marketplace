@@ -201,9 +201,15 @@ export default function Gallery({
                 <span className="text-crt text-glow">
                   {(listing.priceSats / 100_000_000).toFixed(8)} BTC
                 </span>
-                <span className="text-crt border border-crt px-2 py-0.5 hover:bg-crt hover:text-crt-bg">
-                  BUY
-                </span>
+                {ownedIds.has(listing.inscriptionId) ? (
+                  <span className="text-crt-dim border border-crt-dim px-2 py-0.5">
+                    LISTED
+                  </span>
+                ) : (
+                  <span className="text-crt border border-crt px-2 py-0.5 hover:bg-crt hover:text-crt-bg">
+                    BUY
+                  </span>
+                )}
               </div>
             </div>
           ))}

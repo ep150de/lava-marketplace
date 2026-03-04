@@ -1,18 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { queryListings, type ListingWithNostr } from "@/lib/nostr";
 import { verifyUtxoUnspent } from "@/lib/psbt";
 import config from "../../marketplace.config";
 
 /**
  * Hook for fetching and managing active listings from Nostr relays.
+ * Applies "optimistic then filter" pattern: shows all Nostr listings immediately,
+ * then async-verifies each listing's UTXO on-chain and removes spent ones.
  * @param collectionFilter - "all" to show all collections, or a specific slug (defaults to config slug)
  */
 export function useListings(collectionFilter?: "all" | string) {
   const [listings, setListings] = useState<ListingWithNostr[]>([]);
   const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const verifyAbortRef = useRef(0);
 
   const slug = collectionFilter === "all" ? null : (collectionFilter ?? config.collection.slug);
 
@@ -20,7 +24,46 @@ export function useListings(collectionFilter?: "all" | string) {
     try {
       setError(null);
       const results = await queryListings(slug);
+
+      // Optimistic: show all listings immediately
       setListings(results);
+
+      // Then verify UTXOs on-chain and filter out spent ones
+      if (results.length > 0) {
+        const verifyId = ++verifyAbortRef.current;
+        setVerifying(true);
+
+        try {
+          const verifyResults = await Promise.allSettled(
+            results.map(async (listing) => {
+              const [txid, voutStr] = listing.utxo.split(":");
+              const vout = parseInt(voutStr, 10);
+              const unspent = await verifyUtxoUnspent(txid, vout);
+              return { listing, unspent };
+            })
+          );
+
+          // Only update if this is still the latest verify pass
+          if (verifyAbortRef.current === verifyId) {
+            const verified = verifyResults
+              .filter(
+                (r): r is PromiseFulfilledResult<{ listing: ListingWithNostr; unspent: boolean }> =>
+                  r.status === "fulfilled" && r.value.unspent
+              )
+              .map((r) => r.value.listing);
+
+            setListings(verified);
+          }
+        } catch (err) {
+          console.error("UTXO verification error:", err);
+          // On verification failure, keep the optimistic listings — better to show
+          // a potentially-stale listing than to hide valid ones
+        } finally {
+          if (verifyAbortRef.current === verifyId) {
+            setVerifying(false);
+          }
+        }
+      }
     } catch (err) {
       console.error("Failed to fetch listings:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch listings");
@@ -65,6 +108,7 @@ export function useListings(collectionFilter?: "all" | string) {
   return {
     listings,
     loading,
+    verifying,
     error,
     refreshListings: fetchListings,
     verifyListing,

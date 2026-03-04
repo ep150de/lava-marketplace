@@ -78,10 +78,17 @@ export default function InscriptionCard({
         </div>
 
         {/* Action hint */}
-        {isListed && (
+        {isListed && !isOwned && (
           <div className="text-center">
             <span className="text-crt text-xs border border-crt px-2 py-0.5 group-hover:bg-crt group-hover:text-crt-bg transition-all duration-100">
               BUY
+            </span>
+          </div>
+        )}
+        {isListed && isOwned && (
+          <div className="text-center">
+            <span className="text-crt-dim text-xs border border-crt-dim px-2 py-0.5">
+              LISTED
             </span>
           </div>
         )}
