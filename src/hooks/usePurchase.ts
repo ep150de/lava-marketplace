@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useWallet } from "./useWallet";
 import { useFeeRate } from "./useFeeRate";
 import { completePurchasePsbt } from "@/lib/psbt";
+import { MIN_FEE_RATE } from "@/utils/constants";
 import type { ListingWithNostr } from "@/lib/nostr";
 
 export interface PurchaseState {
@@ -32,14 +33,24 @@ export function usePurchase() {
   const [state, setState] = useState<PurchaseState>({ step: "idle" });
 
   const purchase = useCallback(
-    async (listing: ListingWithNostr) => {
+    async (listing: ListingWithNostr, customFeeRate?: number) => {
       if (!adapter || !paymentAddress || !paymentPublicKey || !ordinalsAddress) {
         setState({ step: "error", error: "Wallet not connected" });
         return;
       }
 
-      if (!feeRate) {
+      const effectiveFeeRate = customFeeRate ?? feeRate;
+
+      if (!effectiveFeeRate || effectiveFeeRate <= 0) {
         setState({ step: "error", error: "Fee rate not available. Please try again." });
+        return;
+      }
+
+      if (effectiveFeeRate < MIN_FEE_RATE) {
+        setState({
+          step: "error",
+          error: `Fee rate must be at least ${MIN_FEE_RATE} sat/vB`,
+        });
         return;
       }
 
@@ -53,7 +64,7 @@ export function usePurchase() {
             buyerPaymentPublicKey: paymentPublicKey,
             buyerOrdinalsAddress: ordinalsAddress,
             priceSats: listing.priceSats,
-            feeRateSatVb: feeRate,
+            feeRateSatVb: effectiveFeeRate,
             ordinalUtxoValue: listing.utxoValue,
             inscriptionOffset: listing.inscriptionOffset,
           });

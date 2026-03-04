@@ -1,5 +1,6 @@
 import indexer from "@/lib/ordinals/indexer";
 import type { AddressUtxo } from "@/lib/ordinals/indexer";
+import { DUST_LIMIT, DUMMY_UTXO_VALUE } from "@/utils/constants";
 
 /**
  * UTXO Management
@@ -62,10 +63,13 @@ export async function getClassifiedUtxos(
  * Uses a greedy algorithm: largest first to minimize inputs
  *
  * IMPORTANT: Only selects from cardinal (non-inscription) UTXOs
+ *
+ * @param excludeOutpoints - Set of "txid:vout" strings to exclude (e.g., the dummy UTXO)
  */
 export function selectUtxos(
   cardinalUtxos: ClassifiedUtxo[],
-  targetSats: number
+  targetSats: number,
+  excludeOutpoints?: Set<string>
 ): { selected: ClassifiedUtxo[]; totalValue: number; change: number } {
   // Sort by value descending (largest first)
   const sorted = [...cardinalUtxos].sort((a, b) => b.satoshi - a.satoshi);
@@ -76,8 +80,11 @@ export function selectUtxos(
   for (const utxo of sorted) {
     if (totalValue >= targetSats) break;
 
+    // Skip excluded outpoints (e.g., dummy UTXO already selected)
+    if (excludeOutpoints?.has(`${utxo.txid}:${utxo.vout}`)) continue;
+
     // Skip dust UTXOs — not worth the fee to spend
-    if (utxo.satoshi < 546) continue;
+    if (utxo.satoshi < DUST_LIMIT) continue;
 
     // Double-check: never select ordinal UTXOs
     if (utxo.isOrdinal) continue;
@@ -97,6 +104,35 @@ export function selectUtxos(
     totalValue,
     change: totalValue - targetSats,
   };
+}
+
+/**
+ * Select the smallest cardinal UTXO suitable as a dummy input.
+ *
+ * The dummy input occupies Input 0 in the purchase PSBT so that its sats
+ * pad the inscription into Output 0 (buyer's inscription output) via FIFO.
+ *
+ * Preference: smallest UTXO ≤ DUMMY_UTXO_VALUE (1000 sats).
+ * Fallback: any smallest cardinal UTXO ≥ DUST_LIMIT.
+ */
+export function selectDummyUtxo(
+  cardinalUtxos: ClassifiedUtxo[]
+): ClassifiedUtxo {
+  // Filter to spendable cardinals
+  const spendable = cardinalUtxos
+    .filter((u) => !u.isOrdinal && u.satoshi >= DUST_LIMIT)
+    .sort((a, b) => a.satoshi - b.satoshi); // smallest first
+
+  if (spendable.length === 0) {
+    throw new Error(
+      "No suitable cardinal UTXO available for dummy input. " +
+      "You need at least one non-inscription UTXO with ≥ 546 sats."
+    );
+  }
+
+  // Prefer a small UTXO ≤ DUMMY_UTXO_VALUE to minimize waste
+  const preferred = spendable.find((u) => u.satoshi <= DUMMY_UTXO_VALUE);
+  return preferred ?? spendable[0];
 }
 
 /**

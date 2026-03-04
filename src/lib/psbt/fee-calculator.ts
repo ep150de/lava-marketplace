@@ -52,24 +52,28 @@ export function calculateMarketplaceFee(priceSats: number): number {
 /**
  * Calculate full fee estimate for a standard ordinals purchase
  *
- * Standard purchase transaction:
- * - Input 0: Seller's ordinal UTXO (Taproot)
- * - Input 1+: Buyer's payment UTXOs (Taproot or Segwit)
- * - Output 0: Seller's payment (price)
- * - Output 1: Buyer's ordinal receive
+ * Dummy input purchase transaction (OpenOrdex pattern):
+ * - Input 0: Buyer's dummy cardinal UTXO (padding for FIFO)
+ * - Input 1: Seller's ordinal UTXO (Taproot, signed by seller)
+ * - Input 2+: Buyer's payment UTXOs (Taproot or Segwit)
+ * - Output 0: Buyer's inscription receive (dummy + ordinal value)
+ * - Output 1: Seller's payment (listing price)
  * - Output 2: Marketplace fee
  * - Output 3: Buyer's change
+ *
+ * numBuyerPaymentInputs does NOT include the dummy — it is counted separately.
  */
 export function estimatePurchaseFees(
   priceSats: number,
   feeRateSatVb: number,
-  numBuyerInputs: number = 1,
+  numBuyerPaymentInputs: number = 1,
   buyerInputType: "taproot" | "segwit" = "taproot"
 ): FeeEstimate {
-  const numTaprootInputs = 1 + (buyerInputType === "taproot" ? numBuyerInputs : 0);
-  const numSegwitInputs = buyerInputType === "segwit" ? numBuyerInputs : 0;
+  // +1 for seller's ordinal input (taproot), +1 for buyer's dummy input
+  const numTaprootInputs = 2 + (buyerInputType === "taproot" ? numBuyerPaymentInputs : 0);
+  const numSegwitInputs = buyerInputType === "segwit" ? numBuyerPaymentInputs : 0;
 
-  // 4 outputs: seller payment, buyer ordinal, marketplace fee, buyer change
+  // 4 outputs: buyer inscription, seller payment, marketplace fee, buyer change
   const numTaprootOutputs = 4; // Assume all taproot outputs for estimate
   const numSegwitOutputs = 0;
 
@@ -117,17 +121,23 @@ export async function getCurrentFeeRate(): Promise<{
 }
 
 /**
- * Calculate total buyer must provide for a purchase
+ * Calculate total sats the buyer's PAYMENT UTXOs must cover.
+ *
+ * With the dummy input pattern:
+ *   Inputs:  dummy_value + ordinal_value + payment_total
+ *   Outputs: (dummy_value + ordinal_value) [buyer inscription] + price [seller] + fee + change
+ *
+ * The dummy and ordinal values cancel out (they flow into the buyer's own
+ * inscription output), so payment UTXOs only need to cover:
+ *   price + marketplace_fee + miner_fee
  */
 export function calculateBuyerTotal(
   priceSats: number,
-  feeEstimate: FeeEstimate,
-  inscriptionOutputValue: number = 10000
+  feeEstimate: FeeEstimate
 ): number {
   return (
     priceSats +
     feeEstimate.marketplaceFeeSats +
-    feeEstimate.minerFeeSats +
-    inscriptionOutputValue // Sats for the inscription output sent to buyer
+    feeEstimate.minerFeeSats
   );
 }

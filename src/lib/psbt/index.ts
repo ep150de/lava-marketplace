@@ -15,5 +15,6 @@ export {
 export {
   getClassifiedUtxos,
   selectUtxos,
+  selectDummyUtxo,
   verifyUtxoUnspent,
 } from "./utxo";

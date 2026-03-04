@@ -6,7 +6,8 @@ export const SIGHASH_ALL = 0x01;
 export const SIGHASH_DEFAULT = 0x00; // Taproot default (equivalent to ALL)
 
 // Fee estimation
-export const MIN_FEE_RATE = 1; // sat/vB minimum
+export const MIN_FEE_RATE = 0.15; // sat/vB minimum (supports sub-1 rates)
+export const DUMMY_UTXO_VALUE = 1000; // Max value for preferred dummy UTXO (sats)
 export const MEMPOOL_API = "https://mempool.space/api";
 
 // Transaction size estimates (vbytes)
