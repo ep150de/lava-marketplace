@@ -5,13 +5,19 @@ import { queryListings, type ListingWithNostr } from "@/lib/nostr";
 import { verifyUtxoUnspent } from "@/lib/psbt";
 import config from "../../marketplace.config";
 
+interface UseListingsOptions {
+  /** Skip on-chain UTXO verification (for activity feed that needs all listings including sold). Default: false */
+  skipUtxoVerification?: boolean;
+}
+
 /**
  * Hook for fetching and managing active listings from Nostr relays.
  * Applies "optimistic then filter" pattern: shows all Nostr listings immediately,
  * then async-verifies each listing's UTXO on-chain and removes spent ones.
  * @param collectionFilter - "all" to show all collections, or a specific slug (defaults to config slug)
+ * @param options - { skipUtxoVerification } to disable UTXO filtering (e.g. for activity page)
  */
-export function useListings(collectionFilter?: "all" | string) {
+export function useListings(collectionFilter?: "all" | string, options?: UseListingsOptions) {
   const [listings, setListings] = useState<ListingWithNostr[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
@@ -19,6 +25,7 @@ export function useListings(collectionFilter?: "all" | string) {
   const verifyAbortRef = useRef(0);
 
   const slug = collectionFilter === "all" ? null : (collectionFilter ?? config.collection.slug);
+  const skipVerify = options?.skipUtxoVerification ?? false;
 
   const fetchListings = useCallback(async () => {
     try {
@@ -28,8 +35,8 @@ export function useListings(collectionFilter?: "all" | string) {
       // Optimistic: show all listings immediately
       setListings(results);
 
-      // Then verify UTXOs on-chain and filter out spent ones
-      if (results.length > 0) {
+      // Then verify UTXOs on-chain and filter out spent ones (unless skipped)
+      if (!skipVerify && results.length > 0) {
         const verifyId = ++verifyAbortRef.current;
         setVerifying(true);
 
@@ -70,7 +77,7 @@ export function useListings(collectionFilter?: "all" | string) {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, skipVerify]);
 
   // Initial fetch
   useEffect(() => {
