@@ -18,3 +18,25 @@ export {
   selectDummyUtxo,
   verifyUtxoUnspent,
 } from "./utxo";
+export {
+  buildTimelockScript,
+  createTimelockAddress,
+  locktimeFromDate,
+  isLocktimeExpired,
+  toXOnlyPubkey,
+  formatLocktime,
+  isBlockHeightLocktime,
+} from "./timelock-script";
+export {
+  createTimelockPsbt,
+  type CreateTimelockParams,
+  type CreateTimelockResult,
+  type TimelockMode,
+} from "./create-timelock";
+export {
+  createUnlockTimelockPsbt,
+  finalizeTimelockInput,
+  extractTxFromPsbt,
+  type UnlockTimelockParams,
+  type UnlockTimelockResult,
+} from "./unlock-timelock";

@@ -151,6 +151,9 @@ export class UnisatAdapter implements WalletAdapter {
       index: input.index,
       address: input.address,
       sighashTypes: input.sighashTypes,
+      ...(input.useTweakedSigner !== undefined && {
+        useTweakedSigner: input.useTweakedSigner,
+      }),
     }));
 
     const signedPsbtHex = await this.api.signPsbt(psbtHex, {

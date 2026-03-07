@@ -20,3 +20,12 @@ export {
   parseListingEvent,
   type ListingEventData,
 } from "./event-schema";
+export {
+  buildTimelockTags,
+  parseTimelockEvent,
+  getTimelockDTag,
+  type TimelockEncryptedContent,
+  type TimelockRecord,
+} from "./timelock-schema";
+export { publishTimelock, updateTimelockStatus } from "./publish-timelock";
+export { queryTimelocks } from "./query-timelocks";

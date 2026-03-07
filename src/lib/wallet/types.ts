@@ -29,6 +29,9 @@ export interface SignPsbtOptions {
     address: string;
     index: number;
     sighashTypes?: number[];
+    /** When false, uses script-path Schnorr signing (for taproot script-path spends like CLTV timelocks).
+     *  When true or undefined, uses tweaked key-path signing (standard taproot key-path spend). */
+    useTweakedSigner?: boolean;
   }[];
   broadcast?: boolean;
   autoFinalize?: boolean;

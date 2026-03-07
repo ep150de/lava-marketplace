@@ -9,6 +9,7 @@ import config from "../../../marketplace.config";
 const PUBLIC_NAV_ITEMS = [
   { href: "/", label: "GALLERY", key: "gallery" },
   { href: "/my-listings", label: "MY LAMPS", key: "my-listings" },
+  { href: "/trust-fund", label: "TRUST FUND", key: "trust-fund" },
   { href: "/activity", label: "ACTIVITY", key: "activity" },
   { href: "/about", label: "ABOUT", key: "about" },
 ];

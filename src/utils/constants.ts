@@ -24,3 +24,12 @@ export const NOSTR_LABEL_NAMESPACE = "lava-marketplace";
 // Marketplace
 export const MAX_LISTING_AGE_HOURS = 168; // 7 days before stale warning
 export const LISTING_CHECK_INTERVAL_MS = 30000; // Check UTXO validity every 30s
+
+// Timelock (Trust Fund)
+export const TIMELOCK_SEQUENCE = 0xfffffffe; // nSequence that enables CLTV but disables RBF-style relative lock
+export const UNSPENDABLE_INTERNAL_KEY = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"; // NUMS point — no key-path spend
+export const LEAF_VERSION_TAPSCRIPT = 0xc0; // BIP-342 tapscript leaf version
+export const TIMELOCK_MIN_OUTPUT_VALUE = 546; // Minimum output sats for timelocked UTXO
+export const NOSTR_TIMELOCK_LABEL = "timelock"; // Nostr label for timelock events
+export const TIMELOCK_LOCALSTORAGE_KEY = "lava-timelocks"; // localStorage backup key
+export const TIMELOCK_THRESHOLD = 500_000_000; // Boundary: < this = block height, >= this = unix timestamp
