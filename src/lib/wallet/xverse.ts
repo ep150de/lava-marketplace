@@ -1,4 +1,7 @@
 import { request, AddressPurpose } from "sats-connect";
+import * as bitcoin from "bitcoinjs-lib";
+import * as ecc from "@bitcoinerlab/secp256k1";
+import { MEMPOOL_API } from "@/utils/constants";
 import type {
   WalletAdapter,
   WalletAddress,
@@ -7,6 +10,9 @@ import type {
   SignMessageOptions,
   SignMessageResult,
 } from "./types";
+
+// Initialize ECC library for bitcoinjs-lib (needed for taproot PSBT handling)
+bitcoin.initEccLib(ecc);
 
 /**
  * The provider ID tells sats-connect's core request() to resolve the provider
@@ -121,25 +127,41 @@ export class XverseAdapter implements WalletAdapter {
     };
   }
 
-  async broadcast(psbt: string): Promise<string> {
-    // Xverse can broadcast during signPsbt, but we also support standalone broadcast
-    const response = await request(
-      "signPsbt",
-      {
-        psbt,
-        signInputs: {},
-        broadcast: true,
-      },
-      XVERSE_PROVIDER_ID
-    );
+  async broadcast(psbtBase64: string): Promise<string> {
+    // Parse the signed PSBT and finalize any unfinalized inputs, then extract
+    // the raw transaction and broadcast directly to mempool.space.
+    //
+    // Previously this method re-sent the PSBT through Xverse's signPsbt with
+    // broadcast: true, but the extension's internal backend APIs rejected it
+    // with a 400 error (AxiosError) because the PSBT wasn't in the state the
+    // extension expected. Bypassing Xverse for broadcasting avoids this entirely.
+    const network = bitcoin.networks.bitcoin;
+    const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network });
 
-    if (response.status === "error") {
-      throw new Error(
-        `Xverse broadcast failed: ${response.error?.message || "Unknown error"}`
-      );
+    // Attempt to finalize each input — skip any that are already finalized
+    for (let i = 0; i < psbt.inputCount; i++) {
+      try {
+        psbt.finalizeInput(i);
+      } catch {
+        // Input is likely already finalized or requires custom finalization
+        // (e.g., tapscript CLTV inputs finalized earlier). Safe to skip.
+      }
     }
 
-    return response.result.txid || "";
+    const txHex = psbt.extractTransaction().toHex();
+
+    const response = await fetch(`${MEMPOOL_API}/tx`, {
+      method: "POST",
+      body: txHex,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Broadcast failed: ${errText}`);
+    }
+
+    const txid = await response.text();
+    return txid;
   }
 
   async signMessage(options: SignMessageOptions): Promise<SignMessageResult> {
