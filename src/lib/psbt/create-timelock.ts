@@ -6,7 +6,7 @@ import {
   TIMELOCK_SEQUENCE,
 } from "@/utils/constants";
 import { createTimelockAddress, toXOnlyPubkey } from "./timelock-script";
-import { getClassifiedUtxos, selectUtxos, getOutputScript } from "./utxo";
+import { getClassifiedUtxos, selectUtxos, getOutputScript, getPaymentInputType, addPaymentInput } from "./utxo";
 import { estimateTransactionVsize } from "./fee-calculator";
 import { validateInscriptionTransfer } from "./validate";
 import { isTaprootAddress } from "@/utils/address";
@@ -106,9 +106,7 @@ export async function createTimelockPsbt(
   } = createTimelockAddress(params.locktime, ownerXOnlyPubkey);
 
   const isInscriptionMode = params.mode === "inscription";
-  const buyerInputType = isTaprootAddress(params.paymentAddress)
-    ? ("taproot" as const)
-    : ("segwit" as const);
+  const paymentInputType = getPaymentInputType(params.paymentAddress);
 
   const signInputs: CreateTimelockResult["signInputs"] = [];
 
@@ -154,10 +152,11 @@ export async function createTimelockPsbt(
 
     // Estimate fees: 1 ordinal input (taproot) + N payment inputs
     const initialVsize = estimateTransactionVsize(
-      1 + (buyerInputType === "taproot" ? 1 : 0),
-      buyerInputType === "segwit" ? 1 : 0,
+      1 + (paymentInputType === "taproot" ? 1 : 0),
+      paymentInputType === "segwit" ? 1 : 0,
       1, // Timelock output (taproot)
-      0
+      0,
+      paymentInputType === "p2sh-p2wpkh" ? 1 : 0
     );
     const initialMinerFee = Math.ceil(initialVsize * params.feeRateSatVb);
 
@@ -180,28 +179,25 @@ export async function createTimelockPsbt(
     );
 
     // Re-estimate with actual payment input count
-    const actualTrInputs = 1 + (buyerInputType === "taproot" ? paymentUtxos.length : 0);
-    const actualSwInputs = buyerInputType === "segwit" ? paymentUtxos.length : 0;
+    const actualTrInputs = 1 + (paymentInputType === "taproot" ? paymentUtxos.length : 0);
+    const actualSwInputs = paymentInputType === "segwit" ? paymentUtxos.length : 0;
+    const actualP2shInputs = paymentInputType === "p2sh-p2wpkh" ? paymentUtxos.length : 0;
     // 1 timelock output + 1 change output (taproot)
-    const actualVsize = estimateTransactionVsize(actualTrInputs, actualSwInputs, 2, 0);
+    const actualVsize = estimateTransactionVsize(actualTrInputs, actualSwInputs, 2, 0, actualP2shInputs);
     const actualMinerFee = Math.ceil(actualVsize * params.feeRateSatVb);
 
     // Add payment inputs
     for (const utxo of paymentUtxos) {
       const outputInfo = await getOutputScript(utxo.txid, utxo.vout);
-      const idx = psbt.inputCount;
-      psbt.addInput({
-        hash: utxo.txid,
-        index: utxo.vout,
-        witnessUtxo: {
-          script: Buffer.from(outputInfo.scriptpubkey, "hex"),
-          value: BigInt(utxo.satoshi),
-        },
-      });
-      if (buyerInputType === "taproot") {
-        const payXOnly = toXOnlyPubkey(params.paymentPublicKey);
-        psbt.updateInput(idx, { tapInternalKey: payXOnly });
-      }
+      const idx = addPaymentInput(
+        psbt,
+        utxo.txid,
+        utxo.vout,
+        outputInfo.scriptpubkey,
+        utxo.satoshi,
+        params.paymentPublicKey,
+        paymentInputType
+      );
       signInputs.push({
         address: params.paymentAddress,
         index: idx,
@@ -263,10 +259,11 @@ export async function createTimelockPsbt(
 
     // Estimate fees: N payment inputs, 2 outputs (timelock + change)
     const initialVsize = estimateTransactionVsize(
-      buyerInputType === "taproot" ? 1 : 0,
-      buyerInputType === "segwit" ? 1 : 0,
+      paymentInputType === "taproot" ? 1 : 0,
+      paymentInputType === "segwit" ? 1 : 0,
       2, // timelock + change
-      0
+      0,
+      paymentInputType === "p2sh-p2wpkh" ? 1 : 0
     );
     const initialMinerFee = Math.ceil(initialVsize * params.feeRateSatVb);
 
@@ -277,27 +274,24 @@ export async function createTimelockPsbt(
     );
 
     // Re-estimate with actual input count
-    const actualTrInputs = buyerInputType === "taproot" ? paymentUtxos.length : 0;
-    const actualSwInputs = buyerInputType === "segwit" ? paymentUtxos.length : 0;
-    const actualVsize = estimateTransactionVsize(actualTrInputs, actualSwInputs, 2, 0);
+    const actualTrInputs = paymentInputType === "taproot" ? paymentUtxos.length : 0;
+    const actualSwInputs = paymentInputType === "segwit" ? paymentUtxos.length : 0;
+    const actualP2shInputs = paymentInputType === "p2sh-p2wpkh" ? paymentUtxos.length : 0;
+    const actualVsize = estimateTransactionVsize(actualTrInputs, actualSwInputs, 2, 0, actualP2shInputs);
     const actualMinerFee = Math.ceil(actualVsize * params.feeRateSatVb);
 
     // Add payment inputs
     for (const utxo of paymentUtxos) {
       const outputInfo = await getOutputScript(utxo.txid, utxo.vout);
-      const idx = psbt.inputCount;
-      psbt.addInput({
-        hash: utxo.txid,
-        index: utxo.vout,
-        witnessUtxo: {
-          script: Buffer.from(outputInfo.scriptpubkey, "hex"),
-          value: BigInt(utxo.satoshi),
-        },
-      });
-      if (buyerInputType === "taproot") {
-        const payXOnly = toXOnlyPubkey(params.paymentPublicKey);
-        psbt.updateInput(idx, { tapInternalKey: payXOnly });
-      }
+      const idx = addPaymentInput(
+        psbt,
+        utxo.txid,
+        utxo.vout,
+        outputInfo.scriptpubkey,
+        utxo.satoshi,
+        params.paymentPublicKey,
+        paymentInputType
+      );
       signInputs.push({
         address: params.paymentAddress,
         index: idx,

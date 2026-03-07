@@ -6,7 +6,7 @@ import {
 } from "@/utils/constants";
 import config from "../../../marketplace.config";
 import { calculateMarketplaceFee, estimatePurchaseFees, calculateBuyerTotal } from "./fee-calculator";
-import { getClassifiedUtxos, selectUtxos, selectDummyUtxo, getOutputScript } from "./utxo";
+import { getClassifiedUtxos, selectUtxos, selectDummyUtxo, getOutputScript, getPaymentInputType, addPaymentInput } from "./utxo";
 import { validatePurchasePsbt, validateInscriptionTransfer } from "./validate";
 import { isTaprootAddress } from "@/utils/address";
 
@@ -98,7 +98,7 @@ export async function completePurchasePsbt(
   const dummyOutpoint = `${dummyUtxo.txid}:${dummyUtxo.vout}`;
 
   // Initial fee estimate (1 payment input estimate)
-  const buyerInputType = isTaprootAddress(params.buyerPaymentAddress) ? "taproot" as const : "segwit" as const;
+  const buyerInputType = getPaymentInputType(params.buyerPaymentAddress);
   const initialFeeEstimate = estimatePurchaseFees(
     params.priceSats,
     params.feeRateSatVb,
@@ -134,19 +134,15 @@ export async function completePurchasePsbt(
 
   // --- Input 0: Buyer's dummy UTXO ---
   const dummyOutputInfo = await getOutputScript(dummyUtxo.txid, dummyUtxo.vout);
-  psbt.addInput({
-    hash: dummyUtxo.txid,
-    index: dummyUtxo.vout,
-    witnessUtxo: {
-      script: Buffer.from(dummyOutputInfo.scriptpubkey, "hex"),
-      value: BigInt(dummyUtxo.satoshi),
-    },
-  });
-  if (buyerInputType === "taproot") {
-    const pubkeyBuffer = Buffer.from(params.buyerPaymentPublicKey, "hex");
-    const xOnlyPubkey = pubkeyBuffer.length === 33 ? pubkeyBuffer.subarray(1) : pubkeyBuffer;
-    psbt.updateInput(0, { tapInternalKey: xOnlyPubkey });
-  }
+  addPaymentInput(
+    psbt,
+    dummyUtxo.txid,
+    dummyUtxo.vout,
+    dummyOutputInfo.scriptpubkey,
+    dummyUtxo.satoshi,
+    params.buyerPaymentPublicKey,
+    buyerInputType
+  );
 
   // --- Input 1: Seller's ordinal UTXO (no signatures yet) ---
   // Reconstruct the input from listing PSBT data
@@ -167,23 +163,16 @@ export async function completePurchasePsbt(
   const buyerInputIndices: number[] = [0]; // dummy is buyer input 0
   for (const utxo of paymentUtxos) {
     const outputInfo = await getOutputScript(utxo.txid, utxo.vout);
-    const inputIndex = psbt.inputCount;
+    const inputIndex = addPaymentInput(
+      psbt,
+      utxo.txid,
+      utxo.vout,
+      outputInfo.scriptpubkey,
+      utxo.satoshi,
+      params.buyerPaymentPublicKey,
+      buyerInputType
+    );
     buyerInputIndices.push(inputIndex);
-
-    psbt.addInput({
-      hash: utxo.txid,
-      index: utxo.vout,
-      witnessUtxo: {
-        script: Buffer.from(outputInfo.scriptpubkey, "hex"),
-        value: BigInt(utxo.satoshi),
-      },
-    });
-
-    if (buyerInputType === "taproot") {
-      const pubkeyBuffer = Buffer.from(params.buyerPaymentPublicKey, "hex");
-      const xOnlyPubkey = pubkeyBuffer.length === 33 ? pubkeyBuffer.subarray(1) : pubkeyBuffer;
-      psbt.updateInput(inputIndex, { tapInternalKey: xOnlyPubkey });
-    }
   }
 
   // --- Output 0: Buyer receives the inscription ---

@@ -46,3 +46,10 @@ export function getAddressType(
 export function isTaprootAddress(address: string): boolean {
   return getAddressType(address) === "p2tr";
 }
+
+/**
+ * Check if an address is a P2SH address (e.g., nested segwit P2SH-P2WPKH)
+ */
+export function isP2shAddress(address: string): boolean {
+  return getAddressType(address) === "p2sh";
+}

@@ -4,9 +4,10 @@ import {
   DUST_LIMIT,
   TIMELOCK_SEQUENCE,
   LEAF_VERSION_TAPSCRIPT,
+  VBYTES_P2SH_P2WPKH_INPUT,
 } from "@/utils/constants";
 import { toXOnlyPubkey, createTimelockAddress, isLocktimeExpired } from "./timelock-script";
-import { getClassifiedUtxos, selectUtxos, getOutputScript } from "./utxo";
+import { getClassifiedUtxos, selectUtxos, getOutputScript, getPaymentInputType, addPaymentInput } from "./utxo";
 import { estimateTransactionVsize } from "./fee-calculator";
 import { isTaprootAddress } from "@/utils/address";
 
@@ -140,15 +141,16 @@ export async function createUnlockTimelockPsbt(
   // Tapscript input is bigger than standard P2TR due to script + control block in witness
   // Rough estimate: ~100 vbytes for tapscript input (script ~40 bytes + control block ~33 bytes + sig ~64 bytes + overhead)
   const VBYTES_TAPSCRIPT_INPUT = 100;
-  const buyerInputType = isTaprootAddress(params.paymentAddress)
-    ? ("taproot" as const)
-    : ("segwit" as const);
+  const paymentInputType = getPaymentInputType(params.paymentAddress);
 
   // Initial estimate with 1 payment input
+  const paymentInputVbytes = paymentInputType === "taproot" ? 57.5
+    : paymentInputType === "p2sh-p2wpkh" ? VBYTES_P2SH_P2WPKH_INPUT
+    : 68;
   const initialVsize =
     10.5 + // overhead
     VBYTES_TAPSCRIPT_INPUT + // timelocked input
-    (buyerInputType === "taproot" ? 57.5 : 68) + // 1 payment input
+    paymentInputVbytes + // 1 payment input
     43 * 2; // 2 outputs (destination + change)
   const initialMinerFee = Math.ceil(initialVsize * params.feeRateSatVb);
 
@@ -168,27 +170,23 @@ export async function createUnlockTimelockPsbt(
   const actualVsize =
     10.5 +
     VBYTES_TAPSCRIPT_INPUT +
-    paymentUtxos.length * (buyerInputType === "taproot" ? 57.5 : 68) +
+    paymentUtxos.length * paymentInputVbytes +
     43 * 2;
   const actualMinerFee = Math.ceil(actualVsize * params.feeRateSatVb);
 
   // Add payment inputs
   for (const utxo of paymentUtxos) {
     const outputInfo = await getOutputScript(utxo.txid, utxo.vout);
-    const idx = psbt.inputCount;
-    psbt.addInput({
-      hash: utxo.txid,
-      index: utxo.vout,
-      witnessUtxo: {
-        script: Buffer.from(outputInfo.scriptpubkey, "hex"),
-        value: BigInt(utxo.satoshi),
-      },
-      sequence: TIMELOCK_SEQUENCE, // All inputs need matching sequence for CLTV
-    });
-    if (buyerInputType === "taproot") {
-      const payXOnly = toXOnlyPubkey(params.paymentPublicKey);
-      psbt.updateInput(idx, { tapInternalKey: payXOnly });
-    }
+    const idx = addPaymentInput(
+      psbt,
+      utxo.txid,
+      utxo.vout,
+      outputInfo.scriptpubkey,
+      utxo.satoshi,
+      params.paymentPublicKey,
+      paymentInputType,
+      { sequence: TIMELOCK_SEQUENCE } // All inputs need matching sequence for CLTV
+    );
     signInputs.push({
       address: params.paymentAddress,
       index: idx,

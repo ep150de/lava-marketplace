@@ -1,6 +1,7 @@
 import {
   VBYTES_P2TR_INPUT,
   VBYTES_P2WPKH_INPUT,
+  VBYTES_P2SH_P2WPKH_INPUT,
   VBYTES_P2TR_OUTPUT,
   VBYTES_P2WPKH_OUTPUT,
   VBYTES_TX_OVERHEAD,
@@ -29,11 +30,13 @@ export function estimateTransactionVsize(
   numTaprootInputs: number,
   numSegwitInputs: number,
   numTaprootOutputs: number,
-  numSegwitOutputs: number
+  numSegwitOutputs: number,
+  numP2shInputs: number = 0
 ): number {
   const inputBytes =
     numTaprootInputs * VBYTES_P2TR_INPUT +
-    numSegwitInputs * VBYTES_P2WPKH_INPUT;
+    numSegwitInputs * VBYTES_P2WPKH_INPUT +
+    numP2shInputs * VBYTES_P2SH_P2WPKH_INPUT;
 
   const outputBytes =
     numTaprootOutputs * VBYTES_P2TR_OUTPUT +
@@ -67,11 +70,12 @@ export function estimatePurchaseFees(
   priceSats: number,
   feeRateSatVb: number,
   numBuyerPaymentInputs: number = 1,
-  buyerInputType: "taproot" | "segwit" = "taproot"
+  buyerInputType: "taproot" | "segwit" | "p2sh-p2wpkh" = "taproot"
 ): FeeEstimate {
   // +1 for seller's ordinal input (taproot), +1 for buyer's dummy input
   const numTaprootInputs = 2 + (buyerInputType === "taproot" ? numBuyerPaymentInputs : 0);
   const numSegwitInputs = buyerInputType === "segwit" ? numBuyerPaymentInputs : 0;
+  const numP2shInputs = buyerInputType === "p2sh-p2wpkh" ? numBuyerPaymentInputs : 0;
 
   // 4 outputs: buyer inscription, seller payment, marketplace fee, buyer change
   const numTaprootOutputs = 4; // Assume all taproot outputs for estimate
@@ -81,7 +85,8 @@ export function estimatePurchaseFees(
     numTaprootInputs,
     numSegwitInputs,
     numTaprootOutputs,
-    numSegwitOutputs
+    numSegwitOutputs,
+    numP2shInputs
   );
 
   const minerFeeSats = Math.ceil(estimatedVbytes * feeRateSatVb);

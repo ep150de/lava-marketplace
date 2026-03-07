@@ -13,6 +13,7 @@ export const MEMPOOL_API = "https://mempool.space/api";
 // Transaction size estimates (vbytes)
 export const VBYTES_P2TR_INPUT = 57.5;
 export const VBYTES_P2WPKH_INPUT = 68;
+export const VBYTES_P2SH_P2WPKH_INPUT = 91; // Nested segwit (P2SH-P2WPKH) — larger due to redeemScript in scriptSig
 export const VBYTES_P2TR_OUTPUT = 43;
 export const VBYTES_P2WPKH_OUTPUT = 31;
 export const VBYTES_TX_OVERHEAD = 10.5;
