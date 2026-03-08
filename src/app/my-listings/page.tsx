@@ -15,7 +15,7 @@ import config from "../../../marketplace.config";
 
 export default function MyListingsPage() {
   const router = useRouter();
-  const { connected, adapter, ordinalsAddress } = useWallet();
+  const { connected, adapter, ordinalsAddress, paymentAddress } = useWallet();
   const { inscriptions, loading: inscLoading, error: inscError, refreshInscriptions } = useInscriptions();
   const { listings, loading: listLoading, refreshListings, getListingForInscription } = useListings();
 
@@ -48,7 +48,7 @@ export default function MyListingsPage() {
       // Derive Nostr keypair
       const nostrMessage = getNostrKeyDerivationMessage();
       const { signature } = await adapter.signMessage({
-        address: ordinalsAddress,
+        address: paymentAddress!,
         message: nostrMessage,
       });
       const { privateKey } = deriveNostrKeypair(signature);

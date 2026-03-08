@@ -49,7 +49,7 @@ export function useCreateListing() {
         setState({ step: "signing-nostr" });
         const nostrMessage = getNostrKeyDerivationMessage();
         const { signature: nostrSig } = await adapter.signMessage({
-          address: ordinalsAddress,
+          address: paymentAddress,
           message: nostrMessage,
         });
         const { privateKey: nostrPrivateKey } = deriveNostrKeypair(nostrSig);

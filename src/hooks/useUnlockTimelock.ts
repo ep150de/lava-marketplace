@@ -133,7 +133,7 @@ export function useUnlockTimelock() {
         try {
           const nostrMessage = getNostrKeyDerivationMessage();
           const { signature: nostrSig } = await adapter.signMessage({
-            address: ordinalsAddress,
+            address: paymentAddress,
             message: nostrMessage,
           });
           const { privateKey: nostrPrivateKey } = deriveNostrKeypair(nostrSig);

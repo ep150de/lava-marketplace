@@ -18,13 +18,13 @@ import type { TimelockEncryptedContent } from "@/lib/nostr/timelock-schema";
  * Nostr data takes precedence over localStorage (more authoritative).
  */
 export function useTimelocks() {
-  const { adapter, ordinalsAddress } = useWallet();
+  const { adapter, ordinalsAddress, paymentAddress } = useWallet();
   const [timelocks, setTimelocks] = useState<TimelockRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTimelocks = useCallback(async () => {
-    if (!adapter || !ordinalsAddress) {
+    if (!adapter || !ordinalsAddress || !paymentAddress) {
       setTimelocks([]);
       return;
     }
@@ -50,7 +50,7 @@ export function useTimelocks() {
       try {
         const nostrMessage = getNostrKeyDerivationMessage();
         const { signature: nostrSig } = await adapter.signMessage({
-          address: ordinalsAddress,
+          address: paymentAddress,
           message: nostrMessage,
         });
         const { privateKey: nostrPrivateKey } = deriveNostrKeypair(nostrSig);
@@ -70,7 +70,7 @@ export function useTimelocks() {
     } finally {
       setLoading(false);
     }
-  }, [adapter, ordinalsAddress]);
+  }, [adapter, ordinalsAddress, paymentAddress]);
 
   // Auto-fetch on mount and when wallet changes.
   // Calls fetchTimelocks() which loads localStorage immediately (no signing),
