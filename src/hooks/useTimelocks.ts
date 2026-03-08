@@ -72,21 +72,19 @@ export function useTimelocks() {
     }
   }, [adapter, ordinalsAddress]);
 
-  // Auto-fetch on mount and when wallet changes
+  // Auto-fetch on mount and when wallet changes.
+  // Calls fetchTimelocks() which loads localStorage immediately (no signing),
+  // then prompts the wallet to sign the Nostr key derivation message and
+  // queries Nostr relays to merge any remotely-stored timelocks. This ensures
+  // a second device with the same wallet key can see timelocks created elsewhere.
   useEffect(() => {
-    if (ordinalsAddress) {
-      // Load localStorage immediately (no signing required)
-      const localTimelocks = loadTimelocks(ordinalsAddress);
-      const localRecords: TimelockRecord[] = localTimelocks.map((t) => ({
-        ...t,
-        nostrEventId: "",
-        nostrPubkey: "",
-      }));
-      setTimelocks(localRecords);
+    if (ordinalsAddress && adapter) {
+      fetchTimelocks();
     } else {
       setTimelocks([]);
     }
-  }, [ordinalsAddress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordinalsAddress, adapter]);
 
   return {
     timelocks,

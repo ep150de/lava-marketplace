@@ -125,9 +125,14 @@ export default function TrustFundPage() {
             </span>
           )}
         </div>
-        <Button variant="primary" size="sm" onClick={() => setCreateFormOpen(true)}>
-          NEW TIMELOCK
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={refetch} disabled={loading}>
+            {loading ? "SYNCING..." : "SYNC"}
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => setCreateFormOpen(true)}>
+            NEW TIMELOCK
+          </Button>
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -195,12 +200,20 @@ export default function TrustFundPage() {
   │   LOCK INSCRIPTIONS OR BTC SATS     │
   │   UNTIL A FUTURE DATE.              │
   │                                     │
+  │   IF YOU CREATED TIMELOCKS ON       │
+  │   ANOTHER DEVICE, TAP SYNC.        │
+  │                                     │
   └─────────────────────────────────────┘
 `}
           </pre>
-          <Button variant="primary" onClick={() => setCreateFormOpen(true)}>
-            CREATE FIRST TIMELOCK
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="primary" onClick={() => setCreateFormOpen(true)}>
+              CREATE FIRST TIMELOCK
+            </Button>
+            <Button variant="ghost" onClick={refetch} disabled={loading}>
+              SYNC FROM NOSTR
+            </Button>
+          </div>
         </div>
       )}
 
@@ -220,15 +233,6 @@ export default function TrustFundPage() {
               onUnlock={handleUnlockClick}
             />
           ))}
-        </div>
-      )}
-
-      {/* Refresh + Sync buttons */}
-      {!loading && categorized.total > 0 && (
-        <div className="text-center pt-2 space-x-2">
-          <Button variant="ghost" onClick={refetch}>
-            SYNC FROM NOSTR
-          </Button>
         </div>
       )}
 
