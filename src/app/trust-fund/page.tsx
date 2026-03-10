@@ -9,12 +9,13 @@ import { useTimelocks } from "@/hooks/useTimelocks";
 import { useWallet } from "@/hooks/useWallet";
 import { useMarketplaceContext } from "@/context/MarketplaceContext";
 import { isLocktimeExpired } from "@/lib/psbt/timelock-script";
+import { exportTimelocksBackup } from "@/lib/timelock/export";
 import type { TimelockRecord } from "@/lib/nostr/timelock-schema";
 
 type FilterMode = "all" | "locked" | "expired" | "unlocked";
 
 export default function TrustFundPage() {
-  const { connected } = useWallet();
+  const { connected, ordinalsAddress } = useWallet();
   const { blockHeight } = useMarketplaceContext();
   const { timelocks, loading, error, refetch } = useTimelocks();
 
@@ -69,6 +70,11 @@ export default function TrustFundPage() {
   const handleCreateComplete = () => {
     setCreateFormOpen(false);
     refetch();
+  };
+
+  const handleExportBackup = () => {
+    if (!ordinalsAddress || timelocks.length === 0) return;
+    exportTimelocksBackup(ordinalsAddress, timelocks);
   };
 
   if (!connected) {
@@ -129,11 +135,25 @@ export default function TrustFundPage() {
           <Button variant="ghost" size="sm" onClick={refetch} disabled={loading}>
             {loading ? "SYNCING..." : "SYNC"}
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportBackup}
+            disabled={timelocks.length === 0}
+          >
+            EXPORT BACKUP
+          </Button>
           <Button variant="primary" size="sm" onClick={() => setCreateFormOpen(true)}>
             NEW TIMELOCK
           </Button>
         </div>
       </div>
+
+      {categorized.total > 0 && (
+        <div className="text-crt-dim text-[10px] font-mono">
+          EXPORT BACKUP DOWNLOADS THE FULL TIMELOCK RECOVERY DATA NEEDED TO REBUILD AND UNLOCK YOUR TRUST FUND ENTRIES ON ANOTHER DEVICE.
+        </div>
+      )}
 
       {/* Filter tabs */}
       {categorized.total > 0 && (

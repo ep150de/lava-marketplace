@@ -9,6 +9,7 @@ export const SIGHASH_DEFAULT = 0x00; // Taproot default (equivalent to ALL)
 export const MIN_FEE_RATE = 0.15; // sat/vB minimum (supports sub-1 rates)
 export const DUMMY_UTXO_VALUE = 1000; // Max value for preferred dummy UTXO (sats)
 export const MEMPOOL_API = "https://mempool.space/api";
+export const BLOCKSTREAM_API = "https://blockstream.info/api";
 
 // Transaction size estimates (vbytes)
 export const VBYTES_P2TR_INPUT = 57.5;

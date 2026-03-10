@@ -26,6 +26,7 @@ This marketplace publishes ordinal listings to public Nostr relays so other fork
 - `asset_type`: `ordinal`
 - `market_scope`: `lava-lamps` or `all-ordinals`
 - `fee_policy`: `buyer-marketplace`
+- `capability`: repeated capability tags describing optional marketplace features
 - `collection`: collection or scope slug
 - `inscription`: inscription ID
 - `price`: sale price in sats
@@ -59,6 +60,16 @@ This marketplace currently applies a `2%` buyer-side marketplace fee.
 
 Forks can use the same scopes or define additional scopes while still supporting these two.
 
+## Capability Tags
+
+Listings may include repeated `capability` tags. Current capability values are:
+
+- `buyer-fee-output`: buyer app may add its own marketplace fee output during completion
+- `p2sh-p2wpkh-payment`: seller/payment flows support nested segwit payment addresses
+- `taproot-ordinals`: ordinals input/output handling supports taproot ordinals addresses
+
+Consumers should treat capability tags as optional hints, not strict validation rules.
+
 ## Cancellation
 
 Listings are cancelled using two mechanisms:
@@ -71,6 +82,76 @@ Consumers should filter out:
 - events with `status=cancelled`
 - events with empty content
 - events whose IDs appear in kind `5` deletion events
+
+## Example Listing Event
+
+```json
+{
+  "kind": 30078,
+  "content": "cHNidP8BAHECAAAAA...seller-signed-base64-psbt...",
+  "tags": [
+    ["d", "lava-marketplace:listing:2d1...abci0"],
+    ["L", "lava-marketplace"],
+    ["l", "listing", "lava-marketplace"],
+    ["protocol", "lava-psbt-market"],
+    ["version", "1"],
+    ["asset_type", "ordinal"],
+    ["market_scope", "all-ordinals"],
+    ["fee_policy", "buyer-marketplace"],
+    ["capability", "buyer-fee-output"],
+    ["capability", "p2sh-p2wpkh-payment"],
+    ["capability", "taproot-ordinals"],
+    ["collection", "all-ordinals"],
+    ["inscription", "2d1...abci0"],
+    ["price", "250000"],
+    ["seller", "bc1p..."],
+    ["utxo", "abcd...1234:0"],
+    ["offset", "0"],
+    ["utxo_value", "10000"],
+    ["listed_at", "1760000000"],
+    ["content_type", "image/png"]
+  ]
+}
+```
+
+## Example Cancellation Replacement Event
+
+```json
+{
+  "kind": 30078,
+  "content": "",
+  "tags": [
+    ["d", "lava-marketplace:listing:2d1...abci0"],
+    ["L", "lava-marketplace"],
+    ["l", "cancellation", "lava-marketplace"],
+    ["protocol", "lava-psbt-market"],
+    ["version", "1"],
+    ["asset_type", "ordinal"],
+    ["market_scope", "all-ordinals"],
+    ["capability", "buyer-fee-output"],
+    ["capability", "p2sh-p2wpkh-payment"],
+    ["capability", "taproot-ordinals"],
+    ["status", "cancelled"],
+    ["collection", "all-ordinals"],
+    ["inscription", "2d1...abci0"]
+  ]
+}
+```
+
+## Example NIP-09 Deletion Event
+
+```json
+{
+  "kind": 5,
+  "content": "Listing cancelled",
+  "tags": [
+    ["e", "<original-listing-event-id>"],
+    ["L", "lava-marketplace"],
+    ["l", "cancellation", "lava-marketplace"],
+    ["inscription", "2d1...abci0"]
+  ]
+}
+```
 
 ## Backward Compatibility
 

@@ -2,6 +2,14 @@ import { NOSTR_LISTING_KIND, NOSTR_LABEL_NAMESPACE } from "@/utils/constants";
 
 export type MarketScope = "lava-lamps" | "all-ordinals";
 
+export const LISTING_CAPABILITIES = [
+  "buyer-fee-output",
+  "p2sh-p2wpkh-payment",
+  "taproot-ordinals",
+] as const;
+
+export type ListingCapability = (typeof LISTING_CAPABILITIES)[number];
+
 /**
  * Nostr Event Schema for Marketplace Listings
  *
@@ -40,6 +48,8 @@ export interface ListingEventData {
   marketScope?: MarketScope;
   /** Fee policy indicator for buyer apps */
   feePolicy?: string;
+  /** Optional capability tags for cross-market consumers */
+  capabilities?: ListingCapability[];
 }
 
 /**
@@ -48,6 +58,7 @@ export interface ListingEventData {
 export function buildListingTags(data: ListingEventData): string[][] {
   const marketScope = data.marketScope ??
     (data.collectionSlug === "all-ordinals" ? "all-ordinals" : "lava-lamps");
+  const capabilities = data.capabilities ?? [...LISTING_CAPABILITIES];
 
   return [
     // NIP-33: Parameterized replaceable event identifier
@@ -61,6 +72,7 @@ export function buildListingTags(data: ListingEventData): string[][] {
     ["asset_type", data.assetType || "ordinal"],
     ["market_scope", marketScope],
     ["fee_policy", data.feePolicy || "buyer-marketplace"],
+    ...capabilities.map((capability) => ["capability", capability]),
     ["collection", data.collectionSlug],
     ["inscription", data.inscriptionId],
     ["price", data.priceSats.toString()],
@@ -88,6 +100,10 @@ export function parseListingEvent(event: {
     return tag ? tag[1] : "";
   };
 
+  const getTags = (name: string): string[] => {
+    return event.tags.filter((t) => t[0] === name).map((t) => t[1]);
+  };
+
   return {
     psbtBase64: event.content,
     collectionSlug: getTag("collection"),
@@ -104,6 +120,7 @@ export function parseListingEvent(event: {
     assetType: (getTag("asset_type") || undefined) as "ordinal" | undefined,
     marketScope: (getTag("market_scope") || getTag("collection") || undefined) as MarketScope | undefined,
     feePolicy: getTag("fee_policy") || undefined,
+    capabilities: getTags("capability") as ListingCapability[],
     nostrEventId: event.id,
     nostrPubkey: event.pubkey,
   };
@@ -135,11 +152,18 @@ export function buildCancellationReplacementTags(
   inscriptionId: string,
   collectionSlug: string
 ): string[][] {
+  const marketScope = collectionSlug === "all-ordinals" ? "all-ordinals" : "lava-lamps";
+
   return [
     // Same d-tag as the original listing — triggers NIP-33 replacement
     ["d", `${NOSTR_LABEL_NAMESPACE}:listing:${inscriptionId}`],
     ["L", NOSTR_LABEL_NAMESPACE],
     ["l", "cancellation", NOSTR_LABEL_NAMESPACE],
+    ["protocol", "lava-psbt-market"],
+    ["version", "1"],
+    ["asset_type", "ordinal"],
+    ["market_scope", marketScope],
+    ...LISTING_CAPABILITIES.map((capability) => ["capability", capability]),
     ["status", "cancelled"],
     ["collection", collectionSlug],
     ["inscription", inscriptionId],

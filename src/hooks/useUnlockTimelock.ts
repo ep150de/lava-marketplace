@@ -13,8 +13,8 @@ import {
   updateTimelockStatus,
 } from "@/lib/nostr";
 import type { TimelockRecord } from "@/lib/nostr/timelock-schema";
+import { broadcastTxHex } from "@/lib/bitcoin/broadcast";
 import { updateTimelockInStorage } from "@/lib/timelock/storage";
-import { MEMPOOL_API } from "@/utils/constants";
 
 export interface UnlockTimelockState {
   step:
@@ -110,15 +110,7 @@ export function useUnlockTimelock() {
         // Step 4: Extract raw tx and broadcast via mempool.space
         setState({ step: "broadcasting" });
         const txHex = extractTxFromPsbt(finalizedPsbt);
-        const broadcastRes = await fetch(`${MEMPOOL_API}/tx`, {
-          method: "POST",
-          body: txHex,
-        });
-        if (!broadcastRes.ok) {
-          const errText = await broadcastRes.text();
-          throw new Error(`Broadcast failed: ${errText}`);
-        }
-        const txid = await broadcastRes.text();
+        const txid = await broadcastTxHex(txHex);
 
         // Step 5: Update status in Nostr + localStorage
         setState({ step: "updating-nostr" });

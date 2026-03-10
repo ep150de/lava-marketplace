@@ -1,4 +1,5 @@
 import config from "../../../marketplace.config";
+import { broadcastTxHex } from "@/lib/bitcoin/broadcast";
 
 /**
  * Ordinals Indexer Client
@@ -311,15 +312,7 @@ class OrdinalsIndexer {
    * Broadcast a raw transaction
    */
   async broadcastTransaction(txHex: string): Promise<string> {
-    const res = await fetch("https://mempool.space/api/tx", {
-      method: "POST",
-      body: txHex,
-    });
-    if (!res.ok) {
-      const error = await res.text();
-      throw new Error(`Broadcast failed: ${error}`);
-    }
-    return res.text(); // Returns txid
+    return broadcastTxHex(txHex);
   }
 
   /**

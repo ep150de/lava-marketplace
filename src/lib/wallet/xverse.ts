@@ -1,7 +1,7 @@
 import { request, AddressPurpose } from "sats-connect";
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "@bitcoinerlab/secp256k1";
-import { MEMPOOL_API } from "@/utils/constants";
+import { broadcastTxHex } from "@/lib/bitcoin/broadcast";
 import type {
   WalletAdapter,
   WalletAddress,
@@ -149,19 +149,7 @@ export class XverseAdapter implements WalletAdapter {
     }
 
     const txHex = psbt.extractTransaction().toHex();
-
-    const response = await fetch(`${MEMPOOL_API}/tx`, {
-      method: "POST",
-      body: txHex,
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Broadcast failed: ${errText}`);
-    }
-
-    const txid = await response.text();
-    return txid;
+    return broadcastTxHex(txHex);
   }
 
   async signMessage(options: SignMessageOptions): Promise<SignMessageResult> {

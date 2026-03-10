@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Input, Modal } from "@/components/crt";
 import { useCreateListing, type CreateListingState } from "@/hooks/useCreateListing";
 import { formatBtc, formatSats } from "@/utils/format";
@@ -12,6 +12,7 @@ import config from "../../../marketplace.config";
 interface ListingFormProps {
   inscription: InscriptionData;
   marketScope?: MarketScope;
+  initialPriceSats?: number;
   isOpen: boolean;
   onClose: () => void;
   onComplete?: () => void;
@@ -20,11 +21,14 @@ interface ListingFormProps {
 export default function ListingForm({
   inscription,
   marketScope = "lava-lamps",
+  initialPriceSats,
   isOpen,
   onClose,
   onComplete,
 }: ListingFormProps) {
-  const [priceInput, setPriceInput] = useState("");
+  const [priceInput, setPriceInput] = useState(
+    initialPriceSats ? (initialPriceSats / 100_000_000).toFixed(8) : ""
+  );
   const { step, error, eventId, createListing, reset } = useCreateListing();
 
   const priceSats = Math.floor(parseFloat(priceInput || "0") * 100_000_000);
@@ -41,9 +45,13 @@ export default function ListingForm({
 
   const marketLabel = marketScope === "lava-lamps" ? "VERIFIED LAVA" : "OPEN MARKET";
 
+  useEffect(() => {
+    setPriceInput(initialPriceSats ? (initialPriceSats / 100_000_000).toFixed(8) : "");
+  }, [initialPriceSats, inscription.inscriptionId]);
+
   const handleClose = () => {
     reset();
-    setPriceInput("");
+    setPriceInput(initialPriceSats ? (initialPriceSats / 100_000_000).toFixed(8) : "");
     onClose();
     if (step === "complete") onComplete?.();
   };

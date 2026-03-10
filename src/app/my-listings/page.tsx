@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button, Loader } from "@/components/crt";
 import { InscriptionCard, ListingForm } from "@/components/marketplace";
 import { useInscriptions, type InscriptionScope } from "@/hooks/useInscriptions";
@@ -24,10 +24,13 @@ export default function MyListingsPage() {
 
   const [selectedInscription, setSelectedInscription] = useState<InscriptionData | null>(null);
   const [selectedMarketScope, setSelectedMarketScope] = useState<MarketScope>("lava-lamps");
+  const [initialListPriceSats, setInitialListPriceSats] = useState<number | undefined>(undefined);
   const [listFormOpen, setListFormOpen] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"owned" | "listed">("owned");
+  const [listingSearch, setListingSearch] = useState("");
+  const [listingSort, setListingSort] = useState<"recent" | "price-asc" | "price-desc">("recent");
 
   // My active listings
   const myListings = listings.filter((l) => l.sellerAddress === ordinalsAddress);
@@ -48,6 +51,7 @@ export default function MyListingsPage() {
         : "all-ordinals";
 
       setSelectedMarketScope(inferredScope);
+      setInitialListPriceSats(undefined);
       setSelectedInscription(inscription);
       setListFormOpen(true);
     };
@@ -81,6 +85,73 @@ export default function MyListingsPage() {
       setCancellingId(null);
     }
   };
+
+  const handleBulkCancel = async () => {
+    if (!adapter || !paymentAddress || visibleListings.length === 0) return;
+
+    setCancelError(null);
+
+    try {
+      const nostrMessage = getNostrKeyDerivationMessage();
+      const { signature } = await adapter.signMessage({
+        address: paymentAddress,
+        message: nostrMessage,
+      });
+      const { privateKey } = deriveNostrKeypair(signature);
+
+      for (const listing of visibleListings) {
+        setCancellingId(listing.inscriptionId);
+        await cancelListing(
+          listing.nostrEventId,
+          listing.inscriptionId,
+          listing.collectionSlug,
+          privateKey
+        );
+      }
+
+      await refreshListings();
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : "Failed to bulk cancel listings");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const visibleListings = useMemo(() => {
+    const query = listingSearch.trim().toLowerCase();
+    const filtered = myListings.filter((listing) => {
+      if (!query) return true;
+
+      return (
+        listing.inscriptionId.toLowerCase().includes(query) ||
+        listing.utxo.toLowerCase().includes(query) ||
+        (listing.contentType || "").toLowerCase().includes(query)
+      );
+    });
+
+    return filtered.sort((a, b) => {
+      switch (listingSort) {
+        case "price-asc":
+          return a.priceSats - b.priceSats;
+        case "price-desc":
+          return b.priceSats - a.priceSats;
+        case "recent":
+        default:
+          return b.listedAt - a.listedAt;
+      }
+    });
+  }, [myListings, listingSearch, listingSort]);
+
+  const dashboardStats = useMemo(() => {
+    const listedValueSats = myListings.reduce((sum, listing) => sum + listing.priceSats, 0);
+
+    return {
+      owned: inscriptions.length,
+      listed: myListings.length,
+      unlisted: unlistedInscriptions.length,
+      listedValueSats,
+    };
+  }, [inscriptions.length, myListings, unlistedInscriptions.length]);
 
   if (!connected) {
     return (
@@ -133,6 +204,25 @@ export default function MyListingsPage() {
             {opt.label}
           </button>
         ))}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-xs">
+        <div className="border border-crt-border p-2">
+          <div className="text-crt-dim">OWNED</div>
+          <div className="text-crt-bright text-sm">{dashboardStats.owned}</div>
+        </div>
+        <div className="border border-crt-border p-2">
+          <div className="text-crt-dim">LISTED</div>
+          <div className="text-crt-bright text-sm">{dashboardStats.listed}</div>
+        </div>
+        <div className="border border-crt-border p-2">
+          <div className="text-crt-dim">UNLISTED</div>
+          <div className="text-crt-bright text-sm">{dashboardStats.unlisted}</div>
+        </div>
+        <div className="border border-crt-border p-2">
+          <div className="text-crt-dim">ASK VALUE</div>
+          <div className="text-crt-bright text-sm">{formatBtc(dashboardStats.listedValueSats)} BTC</div>
+        </div>
       </div>
 
       {/* View toggle */}
@@ -246,6 +336,50 @@ export default function MyListingsPage() {
       {/* My listings view */}
       {viewMode === "listed" && !loading && (
         <>
+          <div className="flex flex-col md:flex-row md:items-end gap-3 border border-crt-border/40 p-3 font-mono text-xs">
+            <div className="flex-1">
+              <div className="text-crt-dim mb-1">SEARCH LISTINGS</div>
+              <input
+                value={listingSearch}
+                onChange={(e) => setListingSearch(e.target.value)}
+                placeholder="INSCRIPTION ID, UTXO, OR CONTENT TYPE"
+                className="w-full bg-transparent border border-crt-dim text-crt font-mono text-xs px-2 py-2 outline-none placeholder:text-crt-border"
+              />
+            </div>
+            <div>
+              <div className="text-crt-dim mb-1">SORT</div>
+              <select
+                value={listingSort}
+                onChange={(e) => setListingSort(e.target.value as "recent" | "price-asc" | "price-desc")}
+                className="bg-transparent border border-crt-dim text-crt font-mono text-xs px-2 py-2 outline-none"
+              >
+                <option value="recent">RECENT</option>
+                <option value="price-asc">PRICE ASC</option>
+                <option value="price-desc">PRICE DESC</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setListingSearch("");
+                  setListingSort("recent");
+                }}
+              >
+                RESET
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleBulkCancel}
+                disabled={visibleListings.length === 0 || cancellingId !== null}
+              >
+                BULK CANCEL ({visibleListings.length})
+              </Button>
+            </div>
+          </div>
+
           {myListings.length === 0 ? (
             <div className="text-center py-8 font-mono">
               <div className="text-crt-dim text-sm">NO ACTIVE LISTINGS</div>
@@ -253,9 +387,16 @@ export default function MyListingsPage() {
                 SWITCH TO &quot;OWNED&quot; VIEW TO LIST YOUR INSCRIPTIONS
               </div>
             </div>
+          ) : visibleListings.length === 0 ? (
+            <div className="text-center py-8 font-mono">
+              <div className="text-crt-dim text-sm">NO LISTINGS MATCH SEARCH</div>
+              <div className="text-crt-dim text-xs mt-2">
+                TRY A DIFFERENT INSCRIPTION ID, UTXO, OR CONTENT TYPE
+              </div>
+            </div>
           ) : (
             <div className="space-y-2">
-              {myListings.map((listing) => (
+              {visibleListings.map((listing) => (
                 <div
                   key={listing.inscriptionId}
                   className="border border-crt-border p-3 font-mono text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
@@ -275,6 +416,9 @@ export default function MyListingsPage() {
                     <div className="text-crt-dim">
                       LISTED {formatTimeAgo(listing.listedAt)} | UTXO: {listing.utxo.slice(0, 12)}...
                     </div>
+                    <div className="text-crt-dim">
+                      TYPE: {listing.contentType || "unknown"} | MARKET: {listing.marketScope === "all-ordinals" ? "OPEN MARKET" : "VERIFIED LAVA"}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -282,6 +426,30 @@ export default function MyListingsPage() {
                       onClick={() => router.push(`/item/${encodeURIComponent(listing.inscriptionId)}`)}
                     >
                       VIEW
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const ownedInscription = inscriptions.find(
+                          (inscription) => inscription.inscriptionId === listing.inscriptionId
+                        );
+
+                        if (!ownedInscription) {
+                          setCancelError(
+                            `Relist unavailable for ${truncateInscriptionId(listing.inscriptionId)} because the inscription is not currently in your owned wallet view.`
+                          );
+                          return;
+                        }
+
+                        setSelectedMarketScope(
+                          listing.marketScope === "all-ordinals" ? "all-ordinals" : "lava-lamps"
+                        );
+                        setInitialListPriceSats(listing.priceSats);
+                        setSelectedInscription(ownedInscription);
+                        setListFormOpen(true);
+                      }}
+                    >
+                      RELIST
                     </Button>
                     <Button
                       variant="danger"
@@ -318,14 +486,17 @@ export default function MyListingsPage() {
         <ListingForm
           inscription={selectedInscription}
           marketScope={selectedMarketScope}
+          initialPriceSats={initialListPriceSats}
           isOpen={listFormOpen}
           onClose={() => {
             setListFormOpen(false);
             setSelectedInscription(null);
+            setInitialListPriceSats(undefined);
           }}
           onComplete={() => {
             setListFormOpen(false);
             setSelectedInscription(null);
+            setInitialListPriceSats(undefined);
             refreshListings();
             refreshInscriptions();
           }}
