@@ -6,10 +6,12 @@ import { useCreateListing, type CreateListingState } from "@/hooks/useCreateList
 import { formatBtc, formatSats } from "@/utils/format";
 import { calculateMarketplaceFee } from "@/lib/psbt";
 import type { InscriptionData } from "@/lib/ordinals";
+import type { MarketScope } from "@/lib/nostr";
 import config from "../../../marketplace.config";
 
 interface ListingFormProps {
   inscription: InscriptionData;
+  marketScope?: MarketScope;
   isOpen: boolean;
   onClose: () => void;
   onComplete?: () => void;
@@ -17,6 +19,7 @@ interface ListingFormProps {
 
 export default function ListingForm({
   inscription,
+  marketScope = "lava-lamps",
   isOpen,
   onClose,
   onComplete,
@@ -33,8 +36,10 @@ export default function ListingForm({
 
   const handleSubmit = async () => {
     if (!isValidPrice) return;
-    await createListing(inscription, priceSats);
+    await createListing(inscription, priceSats, marketScope);
   };
+
+  const marketLabel = marketScope === "lava-lamps" ? "VERIFIED LAVA" : "OPEN MARKET";
 
   const handleClose = () => {
     reset();
@@ -67,6 +72,7 @@ export default function ListingForm({
             TYPE: {inscription.contentType} | VALUE:{" "}
             {inscription.outputValue} sats
           </div>
+          <div className="text-crt-dim text-xs">MARKET: {marketLabel}</div>
         </div>
 
         {step === "idle" && (

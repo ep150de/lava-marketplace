@@ -2,13 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "./useWallet";
-import { getCollectionInscriptionsForAddress } from "@/lib/ordinals";
+import {
+  getCollectionInscriptionsForAddress,
+  getInscriptionsForAddress,
+  isCollectionInscription,
+} from "@/lib/ordinals";
 import type { InscriptionData } from "@/lib/ordinals";
+
+export type InscriptionScope = "lava-lamps" | "all-ordinals" | "all";
 
 /**
  * Hook for fetching the connected user's ordinal inscriptions
  */
-export function useInscriptions() {
+export function useInscriptions(scope: InscriptionScope = "lava-lamps") {
   const { connected, ordinalsAddress } = useWallet();
   const [inscriptions, setInscriptions] = useState<InscriptionData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,7 +30,29 @@ export function useInscriptions() {
     setError(null);
 
     try {
-      const results = await getCollectionInscriptionsForAddress(ordinalsAddress);
+      let results: InscriptionData[];
+
+      if (scope === "lava-lamps") {
+        results = await getCollectionInscriptionsForAddress(ordinalsAddress);
+      } else {
+        const allInscriptions = await getInscriptionsForAddress(ordinalsAddress);
+
+        if (scope === "all") {
+          results = allInscriptions;
+        } else {
+          const checks = await Promise.all(
+            allInscriptions.map(async (inscription) => ({
+              inscription,
+              isCollection: await isCollectionInscription(inscription),
+            }))
+          );
+
+          results = checks
+            .filter((entry) => !entry.isCollection)
+            .map((entry) => entry.inscription);
+        }
+      }
+
       setInscriptions(results);
     } catch (err) {
       console.error("Failed to fetch inscriptions:", err);
@@ -34,7 +62,7 @@ export function useInscriptions() {
     } finally {
       setLoading(false);
     }
-  }, [connected, ordinalsAddress]);
+  }, [connected, ordinalsAddress, scope]);
 
   useEffect(() => {
     fetchInscriptions();

@@ -1,5 +1,7 @@
 import { NOSTR_LISTING_KIND, NOSTR_LABEL_NAMESPACE } from "@/utils/constants";
 
+export type MarketScope = "lava-lamps" | "all-ordinals";
+
 /**
  * Nostr Event Schema for Marketplace Listings
  *
@@ -28,12 +30,25 @@ export interface ListingEventData {
   listedAt: number;
   /** Inscription content type */
   contentType?: string;
+  /** Shared protocol identifier for cross-market compatibility */
+  protocol?: string;
+  /** Protocol version */
+  version?: number;
+  /** Listed asset type */
+  assetType?: "ordinal";
+  /** Market namespace / scope */
+  marketScope?: MarketScope;
+  /** Fee policy indicator for buyer apps */
+  feePolicy?: string;
 }
 
 /**
  * Build Nostr event tags for a listing
  */
 export function buildListingTags(data: ListingEventData): string[][] {
+  const marketScope = data.marketScope ??
+    (data.collectionSlug === "all-ordinals" ? "all-ordinals" : "lava-lamps");
+
   return [
     // NIP-33: Parameterized replaceable event identifier
     ["d", `${NOSTR_LABEL_NAMESPACE}:listing:${data.inscriptionId}`],
@@ -41,6 +56,11 @@ export function buildListingTags(data: ListingEventData): string[][] {
     ["L", NOSTR_LABEL_NAMESPACE],
     ["l", "listing", NOSTR_LABEL_NAMESPACE],
     // Marketplace data tags
+    ["protocol", data.protocol || "lava-psbt-market"],
+    ["version", (data.version ?? 1).toString()],
+    ["asset_type", data.assetType || "ordinal"],
+    ["market_scope", marketScope],
+    ["fee_policy", data.feePolicy || "buyer-marketplace"],
     ["collection", data.collectionSlug],
     ["inscription", data.inscriptionId],
     ["price", data.priceSats.toString()],
@@ -79,6 +99,11 @@ export function parseListingEvent(event: {
     utxoValue: parseInt(getTag("utxo_value"), 10) || 0,
     listedAt: parseInt(getTag("listed_at"), 10) || event.created_at,
     contentType: getTag("content_type") || undefined,
+    protocol: getTag("protocol") || undefined,
+    version: parseInt(getTag("version"), 10) || undefined,
+    assetType: (getTag("asset_type") || undefined) as "ordinal" | undefined,
+    marketScope: (getTag("market_scope") || getTag("collection") || undefined) as MarketScope | undefined,
+    feePolicy: getTag("fee_policy") || undefined,
     nostrEventId: event.id,
     nostrPubkey: event.pubkey,
   };

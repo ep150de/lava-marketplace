@@ -7,6 +7,7 @@ import {
   publishListing,
   deriveNostrKeypair,
   getNostrKeyDerivationMessage,
+  type MarketScope,
 } from "@/lib/nostr";
 import { parseSatpoint, isCollectionInscription } from "@/lib/ordinals";
 import type { InscriptionData } from "@/lib/ordinals";
@@ -27,22 +28,30 @@ export function useCreateListing() {
   const [state, setState] = useState<CreateListingState>({ step: "idle" });
 
   const createListing = useCallback(
-    async (inscription: InscriptionData, priceSats: number) => {
+    async (
+      inscription: InscriptionData,
+      priceSats: number,
+      marketScope: MarketScope = "lava-lamps"
+    ) => {
       if (!adapter || !paymentAddress || !ordinalsAddress || !ordinalsPublicKey) {
         setState({ step: "error", error: "Wallet not connected" });
         return;
       }
 
       try {
-        // Step 0: Validate collection membership via provenance
-        setState({ step: "validating-collection" });
-        const isCollection = await isCollectionInscription(inscription);
-        if (!isCollection) {
-          setState({
-            step: "error",
-            error: "This inscription is not part of the Lava Lamps collection. Only verified grandchild inscriptions with valid parent provenance can be listed.",
-          });
-          return;
+        let isCollection = false;
+
+        if (marketScope === "lava-lamps") {
+          // Step 0: Validate collection membership via provenance
+          setState({ step: "validating-collection" });
+          isCollection = await isCollectionInscription(inscription);
+          if (!isCollection) {
+            setState({
+              step: "error",
+              error: "This inscription is not part of the Lava Lamps collection. Only verified grandchild inscriptions with valid parent provenance can be listed.",
+            });
+            return;
+          }
         }
 
         // Step 1: Derive Nostr keypair from BTC signature
@@ -92,7 +101,7 @@ export function useCreateListing() {
         const { eventId } = await publishListing(
           {
             psbtBase64: signedPsbt,
-            collectionSlug: config.collection.slug,
+            collectionSlug: marketScope === "lava-lamps" ? config.collection.slug : "all-ordinals",
             inscriptionId: inscription.inscriptionId,
             priceSats,
             sellerAddress: ordinalsAddress,
@@ -101,6 +110,7 @@ export function useCreateListing() {
             utxoValue: inscription.outputValue,
             listedAt: Math.floor(Date.now() / 1000),
             contentType: inscription.contentType,
+            marketScope,
           },
           nostrPrivateKey
         );

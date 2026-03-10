@@ -3,6 +3,7 @@ import {
   parseListingEvent,
   NOSTR_LISTING_KIND,
   type ListingEventData,
+  type MarketScope,
 } from "./event-schema";
 import { NOSTR_LABEL_NAMESPACE } from "@/utils/constants";
 
@@ -10,6 +11,16 @@ export type ListingWithNostr = ListingEventData & {
   nostrEventId: string;
   nostrPubkey: string;
 };
+
+export type ListingQueryScope = MarketScope | "all";
+
+function resolveListingScope(listing: ListingWithNostr): MarketScope {
+  if (listing.marketScope === "lava-lamps" || listing.marketScope === "all-ordinals") {
+    return listing.marketScope;
+  }
+
+  return listing.collectionSlug === "all-ordinals" ? "all-ordinals" : "lava-lamps";
+}
 
 /**
  * Deduplicate listings by inscription ID, keeping the most recent per inscription.
@@ -67,7 +78,7 @@ function collectDeletedEventIds(
  */
 function parseEvents(
   events: Array<{ content: string; tags: string[][]; created_at: number; pubkey: string; id: string }>,
-  collectionSlug: string | null
+  scope: ListingQueryScope
 ): ListingWithNostr[] {
   return events
     .map((event) => {
@@ -76,8 +87,8 @@ function parseEvents(
         if (isCancelledEvent(event) || hasEmptyContent(event)) return null;
 
         const listing = parseListingEvent(event);
-        // Client-side filter: ensure the listing belongs to this collection (skip if null = show all)
-        if (collectionSlug && listing.collectionSlug !== collectionSlug) return null;
+        const listingScope = resolveListingScope(listing);
+        if (scope !== "all" && listingScope !== scope) return null;
         return listing;
       } catch {
         return null;
@@ -124,7 +135,7 @@ async function fetchDeletedEventIds(): Promise<Set<string>> {
  * 4. Deduplicate by inscription ID, keeping most recent
  */
 export async function queryListings(
-  collectionSlug: string | null,
+  scope: ListingQueryScope = "lava-lamps",
   options: {
     limit?: number;
     since?: number;
@@ -162,7 +173,7 @@ export async function queryListings(
   ]);
 
   // Parse events, filtering out cancelled/empty ones
-  let listings = parseEvents(listingEvents, collectionSlug);
+  let listings = parseEvents(listingEvents, scope);
 
   // Filter out NIP-09 deleted listings
   if (deletedIds.size > 0) {
@@ -184,7 +195,7 @@ export async function queryListings(
  */
 export async function querySellerListings(
   sellerNostrPubkey: string,
-  collectionSlug: string
+  scope: ListingQueryScope = "lava-lamps"
 ): Promise<ListingWithNostr[]> {
   const [events, deletedIds] = await Promise.all([
     queryEvents({
@@ -195,7 +206,7 @@ export async function querySellerListings(
     fetchDeletedEventIds(),
   ]);
 
-  let listings = parseEvents(events, collectionSlug);
+  let listings = parseEvents(events, scope);
   listings = listings.filter((l) => !deletedIds.has(l.nostrEventId));
   return deduplicateListings(listings);
 }
@@ -205,7 +216,7 @@ export async function querySellerListings(
  */
 export async function queryListingByInscription(
   inscriptionId: string,
-  collectionSlug: string
+  scope: ListingQueryScope = "all"
 ): Promise<ListingWithNostr | null> {
   // Try targeted query with #inscription tag first
   let events = await queryEvents({
@@ -224,7 +235,7 @@ export async function queryListingByInscription(
 
   const deletedIds = await fetchDeletedEventIds();
 
-  const listings = parseEvents(events, collectionSlug)
+  const listings = parseEvents(events, scope)
     .filter((l) => l.inscriptionId === inscriptionId)
     .filter((l) => !deletedIds.has(l.nostrEventId));
 

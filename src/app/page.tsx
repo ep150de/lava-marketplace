@@ -6,19 +6,16 @@ import { useListings } from "@/hooks/useListings";
 import { useInscriptions } from "@/hooks/useInscriptions";
 import { useMarketplaceContext } from "@/context/MarketplaceContext";
 import { useWallet } from "@/hooks/useWallet";
-import { Loader } from "@/components/crt";
-import type { ListingWithNostr } from "@/lib/nostr";
+import type { ListingQueryScope, ListingWithNostr } from "@/lib/nostr";
 import { useRouter } from "next/navigation";
 import config from "../../marketplace.config";
 
 export default function HomePage() {
   const router = useRouter();
   const { connected } = useWallet();
-  const [collectionFilter, setCollectionFilter] = useState<"lava-lamps" | "all">("lava-lamps");
-  const { listings, loading, error, refreshListings } = useListings(
-    collectionFilter === "all" ? "all" : config.collection.slug
-  );
-  const { inscriptions } = useInscriptions();
+  const [marketScope, setMarketScope] = useState<ListingQueryScope>("lava-lamps");
+  const { listings, loading, error, refreshListings } = useListings(marketScope);
+  const { inscriptions } = useInscriptions("all");
   const { blockHeight, btcPrice } = useMarketplaceContext();
 
   const [selectedListing, setSelectedListing] = useState<ListingWithNostr | null>(null);
@@ -49,21 +46,31 @@ export default function HomePage() {
   const floorPrice = listings.length > 0
     ? Math.min(...listings.map((l) => l.priceSats))
     : 0;
+  const isLavaOnly = marketScope === "lava-lamps";
+  const isOtherOrdinals = marketScope === "all-ordinals";
 
   return (
     <div className="space-y-6">
-      {/* Collection stats bar */}
+      {/* Market stats bar */}
       <div className="border border-crt-border p-3 font-mono">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <div>
-              <span className="text-crt-dim">COLLECTION: </span>
-              <span className="text-crt-bright">{config.collection.name.toUpperCase()}</span>
+              <span className="text-crt-dim">MARKET: </span>
+              <span className="text-crt-bright">
+                {isLavaOnly
+                  ? config.collection.name.toUpperCase()
+                  : isOtherOrdinals
+                  ? "OTHER ORDINALS"
+                  : "ALL ORDINALS"}
+              </span>
             </div>
-            <div>
-              <span className="text-crt-dim">SUPPLY: </span>
-              <span className="text-crt">{config.collection.totalSupply.toLocaleString()}</span>
-            </div>
+            {isLavaOnly && (
+              <div>
+                <span className="text-crt-dim">SUPPLY: </span>
+                <span className="text-crt">{config.collection.totalSupply.toLocaleString()}</span>
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <div>
@@ -120,8 +127,8 @@ export default function HomePage() {
           loading={loading}
           error={error}
           onItemClick={handleItemClick}
-          collectionFilter={collectionFilter}
-          onCollectionFilterChange={setCollectionFilter}
+          collectionFilter={marketScope}
+          onCollectionFilterChange={setMarketScope}
         />
       </div>
 

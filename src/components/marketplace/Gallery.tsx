@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import InscriptionCard from "./InscriptionCard";
 import { Loader } from "@/components/crt";
-import type { ListingWithNostr } from "@/lib/nostr";
+import type { ListingQueryScope, ListingWithNostr } from "@/lib/nostr";
 import type { InscriptionData } from "@/lib/ordinals";
 
 interface GalleryProps {
@@ -12,8 +12,8 @@ interface GalleryProps {
   loading?: boolean;
   error?: string | null;
   onItemClick?: (inscriptionId: string) => void;
-  collectionFilter?: "lava-lamps" | "all";
-  onCollectionFilterChange?: (filter: "lava-lamps" | "all") => void;
+  collectionFilter?: ListingQueryScope;
+  onCollectionFilterChange?: (filter: ListingQueryScope) => void;
   className?: string;
 }
 
@@ -50,6 +50,13 @@ export default function Gallery({
     }
   });
 
+  const emptyStateLabel =
+    collectionFilter === "lava-lamps"
+      ? "YOUR LAVA LAMP!"
+      : collectionFilter === "all-ordinals"
+      ? "YOUR ORDINAL!"
+      : "YOUR INSCRIPTION!";
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -81,10 +88,11 @@ export default function Gallery({
           {/* Collection filter */}
           {onCollectionFilterChange && (
             <div className="flex items-center gap-1">
-              <span className="text-crt-dim">COLLECTION:</span>
+              <span className="text-crt-dim">MARKET:</span>
               {(
                 [
                   { key: "lava-lamps", label: "LAVA LAMPS" },
+                  { key: "all-ordinals", label: "OTHER ORDINALS" },
                   { key: "all", label: "ALL" },
                 ] as const
               ).map((opt) => (
@@ -157,13 +165,13 @@ export default function Gallery({
       {sortedListings.length === 0 ? (
         <div className="text-center py-12 font-mono">
           <pre className="text-crt-dim text-xs leading-tight">
-{`
+ {`
   ┌──────────────────────────────┐
   │                              │
   │   NO LISTINGS FOUND          │
   │                              │
   │   BE THE FIRST TO LIST       │
-  │   YOUR LAVA LAMP!            │
+  │   ${emptyStateLabel.padEnd(28)}│
   │                              │
   └──────────────────────────────┘
 `}

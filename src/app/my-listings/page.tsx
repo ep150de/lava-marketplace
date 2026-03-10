@@ -3,11 +3,11 @@
 import React, { useState } from "react";
 import { Button, Loader } from "@/components/crt";
 import { InscriptionCard, ListingForm } from "@/components/marketplace";
-import { useInscriptions } from "@/hooks/useInscriptions";
+import { useInscriptions, type InscriptionScope } from "@/hooks/useInscriptions";
 import { useListings } from "@/hooks/useListings";
 import { useWallet } from "@/hooks/useWallet";
-import { cancelListing, deriveNostrKeypair, getNostrKeyDerivationMessage } from "@/lib/nostr";
-import type { InscriptionData } from "@/lib/ordinals";
+import { cancelListing, deriveNostrKeypair, getNostrKeyDerivationMessage, type MarketScope } from "@/lib/nostr";
+import { isCollectionInscription, type InscriptionData } from "@/lib/ordinals";
 import type { ListingWithNostr } from "@/lib/nostr";
 import { formatBtc, formatSats, truncateInscriptionId, formatTimeAgo } from "@/utils/format";
 import { useRouter } from "next/navigation";
@@ -16,10 +16,14 @@ import config from "../../../marketplace.config";
 export default function MyListingsPage() {
   const router = useRouter();
   const { connected, adapter, ordinalsAddress, paymentAddress } = useWallet();
-  const { inscriptions, loading: inscLoading, error: inscError, refreshInscriptions } = useInscriptions();
-  const { listings, loading: listLoading, refreshListings, getListingForInscription } = useListings();
+  const [marketScope, setMarketScope] = useState<InscriptionScope>("lava-lamps");
+  const { inscriptions, loading: inscLoading, error: inscError, refreshInscriptions } = useInscriptions(marketScope);
+  const { listings, loading: listLoading, refreshListings, getListingForInscription } = useListings(
+    marketScope === "all" ? "all" : marketScope
+  );
 
   const [selectedInscription, setSelectedInscription] = useState<InscriptionData | null>(null);
+  const [selectedMarketScope, setSelectedMarketScope] = useState<MarketScope>("lava-lamps");
   const [listFormOpen, setListFormOpen] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -34,8 +38,21 @@ export default function MyListingsPage() {
   );
 
   const handleListClick = (inscription: InscriptionData) => {
-    setSelectedInscription(inscription);
-    setListFormOpen(true);
+    const openListingForm = async () => {
+      const inferredScope: MarketScope = marketScope === "all-ordinals"
+        ? "all-ordinals"
+        : marketScope === "lava-lamps"
+        ? "lava-lamps"
+        : (await isCollectionInscription(inscription))
+        ? "lava-lamps"
+        : "all-ordinals";
+
+      setSelectedMarketScope(inferredScope);
+      setSelectedInscription(inscription);
+      setListFormOpen(true);
+    };
+
+    void openListingForm();
   };
 
   const handleCancelListing = async (listing: ListingWithNostr) => {
@@ -91,10 +108,31 @@ export default function MyListingsPage() {
     <div className="space-y-4">
       {/* Page header */}
       <div className="border-b border-crt-dim pb-2 font-mono">
-        <div className="text-crt-bright text-sm">MY LAVA LAMPS</div>
+        <div className="text-crt-bright text-sm">MY ORDINALS</div>
         <div className="text-crt-dim text-xs mt-1">
-          MANAGE YOUR COLLECTION AND LISTINGS
+          MANAGE YOUR LAVA LAMPS, OTHER INSCRIPTIONS, AND ACTIVE LISTINGS
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 font-mono text-xs">
+        <span className="text-crt-dim">MARKET:</span>
+        {([
+          { key: "lava-lamps", label: "LAVA LAMPS" },
+          { key: "all-ordinals", label: "OTHER ORDINALS" },
+          { key: "all", label: "ALL" },
+        ] as const).map((opt) => (
+          <button
+            key={opt.key}
+            onClick={() => setMarketScope(opt.key)}
+            className={`px-2 py-0.5 cursor-pointer ${
+              marketScope === opt.key
+                ? "bg-crt text-crt-bg"
+                : "text-crt-dim hover:text-crt"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {/* View toggle */}
@@ -153,8 +191,11 @@ export default function MyListingsPage() {
             <div className="text-center py-8 font-mono">
               <div className="text-crt-dim text-sm">NO INSCRIPTIONS FOUND</div>
               <div className="text-crt-dim text-xs mt-2">
-                INSCRIPTIONS FROM THE {config.collection.name.toUpperCase()} COLLECTION
-                WILL APPEAR HERE
+                {marketScope === "lava-lamps"
+                  ? `INSCRIPTIONS FROM THE ${config.collection.name.toUpperCase()} COLLECTION WILL APPEAR HERE`
+                  : marketScope === "all-ordinals"
+                  ? "NON-LAVA INSCRIPTIONS YOU OWN WILL APPEAR HERE"
+                  : "ALL INSCRIPTIONS YOU OWN WILL APPEAR HERE"}
               </div>
             </div>
           ) : (
@@ -276,6 +317,7 @@ export default function MyListingsPage() {
       {selectedInscription && (
         <ListingForm
           inscription={selectedInscription}
+          marketScope={selectedMarketScope}
           isOpen={listFormOpen}
           onClose={() => {
             setListFormOpen(false);

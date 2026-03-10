@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Loader } from "@/components/crt";
-import { BuyModal, ListingForm, PriceDisplay } from "@/components/marketplace";
+import { BuyModal, ListingForm } from "@/components/marketplace";
 import { useListings } from "@/hooks/useListings";
 import { useInscriptions } from "@/hooks/useInscriptions";
 import { useWallet } from "@/hooks/useWallet";
 import { getInscriptionDetails, getInscriptionPreviewUrl } from "@/lib/ordinals";
 import type { InscriptionData } from "@/lib/ordinals";
-import type { ListingWithNostr } from "@/lib/nostr";
+import type { MarketScope } from "@/lib/nostr";
 import { formatBtc, formatSats, truncateAddress, truncateInscriptionId, formatTimeAgo } from "@/utils/format";
 import config from "../../../../marketplace.config";
 
@@ -19,10 +19,10 @@ export default function ItemDetailPage() {
   const inscriptionId = decodeURIComponent(params.id as string);
 
   const { connected, ordinalsAddress } = useWallet();
-  const { listings, getListingForInscription, refreshListings, verifyListing } = useListings();
-  const { inscriptions } = useInscriptions();
+  const { getListingForInscription, refreshListings, verifyListing } = useListings("all");
+  const { inscriptions } = useInscriptions("all");
 
-  const [inscription, setInscription] = useState<InscriptionData | null>(null);
+  const [inscription, setInscription] = useState<(InscriptionData & { isCollectionItem?: boolean }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [buyModalOpen, setBuyModalOpen] = useState(false);
@@ -32,6 +32,10 @@ export default function ItemDetailPage() {
   const listing = getListingForInscription(inscriptionId);
   const isOwned = inscriptions.some((i) => i.inscriptionId === inscriptionId);
   const isSeller = listing?.sellerAddress === ordinalsAddress;
+  const listingMarketScope: MarketScope = listing?.marketScope === "all-ordinals" ? "all-ordinals" : "lava-lamps";
+  const inscriptionMarketScope: MarketScope = inscription?.isCollectionItem ? "lava-lamps" : "all-ordinals";
+  const itemTitle = inscription?.isCollectionItem ? config.collection.name.toUpperCase() : "OPEN MARKET ORDINAL";
+  const itemSubtitle = inscription?.isCollectionItem ? "VERIFIED LAVA LAMP" : "OTHER ORDINAL / OPEN MARKET";
 
   // Fetch inscription details
   useEffect(() => {
@@ -128,10 +132,10 @@ export default function ItemDetailPage() {
           {/* Title */}
           <div className="border-b border-crt-dim pb-2">
             <div className="text-crt-bright text-lg">
-              {config.collection.name.toUpperCase()}
+              {itemTitle}
             </div>
             <div className="text-crt-dim text-xs mt-1">
-              #{inscription.inscriptionNumber || "???"}
+              {itemSubtitle} | #{inscription.inscriptionNumber || "???"}
             </div>
           </div>
 
@@ -248,11 +252,17 @@ export default function ItemDetailPage() {
           {/* Collection info */}
           <div className="border border-crt-border/30 p-3 text-xs">
             <div className="text-crt-dim">
-              COLLECTION: {config.collection.name}
+              MARKET: {inscription.isCollectionItem ? config.collection.name : "OTHER ORDINALS"}
             </div>
-            <div className="text-crt-dim mt-1">
-              ARTIST: {config.collection.artist} | SUPPLY: {config.collection.totalSupply.toLocaleString()}
-            </div>
+            {inscription.isCollectionItem ? (
+              <div className="text-crt-dim mt-1">
+                ARTIST: {config.collection.artist} | SUPPLY: {config.collection.totalSupply.toLocaleString()}
+              </div>
+            ) : (
+              <div className="text-crt-dim mt-1">
+                OPEN-MARKET LISTING USING SHARED NOSTR + PSBT MARKET FORMAT
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -274,6 +284,7 @@ export default function ItemDetailPage() {
       {inscription && isOwned && (
         <ListingForm
           inscription={inscription}
+          marketScope={listing ? listingMarketScope : inscriptionMarketScope}
           isOpen={listFormOpen}
           onClose={() => setListFormOpen(false)}
           onComplete={() => {

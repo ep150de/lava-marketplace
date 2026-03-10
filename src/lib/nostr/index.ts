@@ -12,6 +12,7 @@ export {
   queryListings,
   querySellerListings,
   queryListingByInscription,
+  type ListingQueryScope,
   type ListingWithNostr,
 } from "./query-listings";
 export { cancelListing } from "./cancel-listing";
@@ -19,6 +20,7 @@ export {
   buildListingTags,
   parseListingEvent,
   type ListingEventData,
+  type MarketScope,
 } from "./event-schema";
 export {
   buildTimelockTags,

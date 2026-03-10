@@ -10,6 +10,26 @@ import config from "../../../marketplace.config";
 /** Cache for collection membership checks to avoid redundant API calls */
 const collectionCache = new Map<string, boolean>();
 
+async function fetchAllInscriptionsForAddress(address: string): Promise<InscriptionData[]> {
+  const all: InscriptionData[] = [];
+  let cursor = 0;
+  const size = 100;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { list, total } = await indexer.getInscriptionsByAddress(
+      address,
+      cursor,
+      size
+    );
+    all.push(...list);
+    cursor += size;
+    hasMore = cursor < total;
+  }
+
+  return all;
+}
+
 /**
  * Fetch parent inscription IDs for a given inscription from ordinals.com.
  * Uses the recursive endpoint /r/parents/{inscriptionId} which returns
@@ -81,21 +101,7 @@ export function clearCollectionCache(): void {
 export async function getCollectionInscriptionsForAddress(
   address: string
 ): Promise<InscriptionData[]> {
-  const all: InscriptionData[] = [];
-  let cursor = 0;
-  const size = 100;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { list, total } = await indexer.getInscriptionsByAddress(
-      address,
-      cursor,
-      size
-    );
-    all.push(...list);
-    cursor += size;
-    hasMore = cursor < total;
-  }
+  const all = await fetchAllInscriptionsForAddress(address);
 
   // Validate collection membership in parallel
   const checks = await Promise.all(
@@ -108,6 +114,15 @@ export async function getCollectionInscriptionsForAddress(
   return checks
     .filter((c) => c.isCollection)
     .map((c) => c.inscription);
+}
+
+/**
+ * Fetch all inscriptions for an address without collection filtering.
+ */
+export async function getInscriptionsForAddress(
+  address: string
+): Promise<InscriptionData[]> {
+  return fetchAllInscriptionsForAddress(address);
 }
 
 /**
