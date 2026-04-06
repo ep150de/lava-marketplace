@@ -154,7 +154,7 @@ const config: MarketplaceConfig = {
     name: "LAVA TERMINAL",
     feePercent: 2,
     feeAddress: "bc1pp8jjn7mhyqzp2qs3jahl848kw2v9lhupu7fdavs9wc3tx4tkja6qd3pfyx",
-    minListingPriceSats: 10000,
+    minListingPriceSats: 1000,
     network: "mainnet",
     adminAddresses: [
       "bc1pp8jjn7mhyqzp2qs3jahl848kw2v9lhupu7fdavs9wc3tx4tkja6qd3pfyx",
