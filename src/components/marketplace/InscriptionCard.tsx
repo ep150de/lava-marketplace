@@ -31,7 +31,7 @@ export default function InscriptionCard({
       className={`inscription-card cursor-pointer group ${className}`}
     >
       {/* Image preview */}
-      <div className="card-image aspect-[4/3] relative">
+      <div className="card-image aspect-square relative">
         <iframe
           src={previewUrl}
           title={`Inscription ${inscriptionId}`}

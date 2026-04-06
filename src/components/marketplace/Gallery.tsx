@@ -153,7 +153,7 @@ export default function Gallery({
   }
 
   return (
-    <div className={`${className}`}>
+    <div className={`gallery-grid gallery-grid--${collectionFilter} ${className}`}>
       {/* Controls bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pb-2 border-b border-crt-border">
         <div className="font-mono text-xs text-crt-dim">
