@@ -107,7 +107,7 @@ export default function ItemDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left: Inscription preview */}
         <div className="space-y-3">
-          <div className="border border-crt-border aspect-square relative bg-crt-bg">
+          <div className="border border-crt-border aspect-[4/3] relative bg-crt-bg p-1.5">
             <iframe
               src={previewUrl}
               title={`Inscription ${inscriptionId}`}

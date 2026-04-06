@@ -384,6 +384,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  padding: 6px;
 }
 
 .inscription-card .card-image iframe {
