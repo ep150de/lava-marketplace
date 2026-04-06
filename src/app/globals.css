@@ -398,7 +398,7 @@ a:hover {
    ============================================ */
 
 .gallery-grid--lava-lamps .inscription-card .card-image iframe {
-  transform: scale(0.82);
+  transform: scale(0.50);
   transform-origin: center center;
   pointer-events: none;
 }
