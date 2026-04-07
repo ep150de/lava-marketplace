@@ -289,7 +289,7 @@ export default function MyListingsPage() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3${marketScope === "lava-lamps" ? " gallery-grid gallery-grid--lava-lamps" : ""}`}>
               {inscriptions.map((inscription) => {
                 const listing = getListingForInscription(inscription.inscriptionId);
                 return (
