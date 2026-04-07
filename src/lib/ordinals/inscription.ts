@@ -207,37 +207,46 @@ async function buildInscriptionSummaries(ids: string[]): Promise<InscriptionSumm
 /**
  * Fetch the full genealogy tree for an inscription.
  * Retrieves first page of parents and first page of children (up to 100 each).
+ * Times out after 15 seconds to avoid hanging the UI.
  */
 export async function getInscriptionGenealogy(
   inscriptionId: string
 ): Promise<InscriptionGenealogy> {
-  const [parentResult, childResult] = await Promise.all([
-    (async () => {
-      try {
-        const ids = await fetchParentIds(inscriptionId);
-        const summaries = await buildInscriptionSummaries(ids);
-        return { summaries, hasMore: ids.length >= 100 };
-      } catch {
-        return { summaries: [], hasMore: false };
-      }
-    })(),
-    (async () => {
-      try {
-        const result = await fetchChildrenIds(inscriptionId);
-        const summaries = await buildInscriptionSummaries(result.ids);
-        return { summaries, hasMore: result.more };
-      } catch {
-        return { summaries: [], hasMore: false };
-      }
-    })(),
-  ]);
+  const fetchGenealogy = async () => {
+    const [parentResult, childResult] = await Promise.all([
+      (async () => {
+        try {
+          const ids = await fetchParentIds(inscriptionId);
+          const summaries = await buildInscriptionSummaries(ids);
+          return { summaries, hasMore: ids.length >= 100 };
+        } catch {
+          return { summaries: [], hasMore: false };
+        }
+      })(),
+      (async () => {
+        try {
+          const result = await fetchChildrenIds(inscriptionId);
+          const summaries = await buildInscriptionSummaries(result.ids);
+          return { summaries, hasMore: result.more };
+        } catch {
+          return { summaries: [], hasMore: false };
+        }
+      })(),
+    ]);
 
-  return {
-    parents: parentResult.summaries,
-    children: childResult.summaries,
-    hasMoreParents: parentResult.hasMore,
-    hasMoreChildren: childResult.hasMore,
+    return {
+      parents: parentResult.summaries,
+      children: childResult.summaries,
+      hasMoreParents: parentResult.hasMore,
+      hasMoreChildren: childResult.hasMore,
+    };
   };
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("Genealogy request timed out after 15s")), 15000)
+  );
+
+  return Promise.race([fetchGenealogy(), timeoutPromise]);
 }
 
 /**

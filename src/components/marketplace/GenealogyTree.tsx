@@ -29,8 +29,7 @@ export function GenealogyTree({ inscriptionId, initialGenealogy }: GenealogyTree
   const [genealogy, setGenealogy] = useState<InscriptionGenealogy | null>(
     initialGenealogy ?? null
   );
-  const [loading] = useState(!initialGenealogy);
-  const [error] = useState<string | null>(null);
+  const loading = !genealogy;
   const [parentsExpanded, setParentsExpanded] = useState(true);
   const [childrenExpanded, setChildrenExpanded] = useState(true);
   const [parentPage, setParentPage] = useState(0);
@@ -156,12 +155,12 @@ export function GenealogyTree({ inscriptionId, initialGenealogy }: GenealogyTree
     );
   }
 
-  if (error || !genealogy) {
+  if (!genealogy) {
     return (
       <div className="genealogy-section">
-        <div className="genealogy-header">GENEALOGY</div>
-        <div className="text-crt-error text-xs font-mono p-4">
-          FAILED TO LOAD GENEALOGY
+        <div className="genealogy-header">── GENEALOGY ────────────────────────────────────</div>
+        <div className="text-crt-dim text-xs font-mono p-4">
+          NO GENEALOGY DATA AVAILABLE
         </div>
       </div>
     );
