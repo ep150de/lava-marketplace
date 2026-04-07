@@ -394,12 +394,44 @@ a:hover {
 }
 
 /* ============================================
-   LAVA LAMPS COLLECTION — SCALED PREVIEW
+   LAVA LAMPS COLLECTION — LARGER CARDS
    ============================================ */
 
+.gallery-grid--lava-lamps .grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .gallery-grid--lava-lamps .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  .gallery-grid--lava-lamps .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .gallery-grid--lava-lamps .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .gallery-grid--lava-lamps .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.gallery-grid--lava-lamps .inscription-card .card-image {
+  aspect-ratio: 3 / 2;
+}
+
 .gallery-grid--lava-lamps .inscription-card .card-image iframe {
-  transform: scale(0.50);
-  transform-origin: center center;
+  transform: none;
   pointer-events: none;
 }
 
