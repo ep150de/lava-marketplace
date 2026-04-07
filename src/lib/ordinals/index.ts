@@ -11,6 +11,7 @@ export {
   getInscriptionContentUrl,
   getInscriptionPreviewUrl,
   getInscriptionGenealogy,
+  getInscriptionGenealogyV2,
 } from "./inscription";
 export {
   getCollectionMetadata,

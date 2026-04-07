@@ -36,6 +36,8 @@ export interface InscriptionInfo {
   address?: string;
   fee: number;
   charms: string[];
+  parents: string[];
+  children: string[];
 }
 
 /** Response from the ordinals.com /r/children and /r/parents endpoints */
@@ -44,6 +46,22 @@ interface PageResponse {
   more: boolean;
   page_index?: number;
   page?: number;
+}
+
+interface BatchInscriptionResponse {
+  id: string;
+  number: number;
+  content_type: string;
+  content_length: number;
+  height: number;
+  timestamp: number;
+  output: string;
+  satpoint: string;
+  address?: string;
+  fee: number;
+  charms: string[];
+  parents: string[];
+  children: string[];
 }
 
 /** Full genealogy tree for an inscription */
@@ -72,63 +90,6 @@ async function fetchAllInscriptionsForAddress(address: string): Promise<Inscript
   }
 
   return all;
-}
-
-/**
- * Fetch parent inscription IDs for a given inscription from ordinals.com.
- * Uses the recursive endpoint /r/parents/{inscriptionId} which returns
- * paginated parent IDs.
- */
-async function fetchParentIds(inscriptionId: string): Promise<string[]> {
-  const allIds: string[] = [];
-  let page = 0;
-  let more = true;
-
-  while (more) {
-    const url = `https://ordinals.com/r/parents/${inscriptionId}/${page}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch parents for ${inscriptionId}: ${res.status}`);
-    }
-
-    const data: { ids: string[]; more: boolean; page_index: number } = await res.json();
-    allIds.push(...data.ids);
-    more = data.more;
-    page++;
-  }
-
-  return allIds;
-}
-
-// ============================================================
-// GENEALOGY FUNCTIONS
-// ============================================================
-
-/**
- * Fetch child inscription IDs for a given inscription from ordinals.com.
- * Uses the recursive endpoint /r/children/{inscriptionId}/{page}.
- */
-async function fetchChildrenIds(inscriptionId: string): Promise<{ ids: string[]; more: boolean }> {
-  const allIds: string[] = [];
-  let page = 0;
-  let more = true;
-
-  while (more) {
-    const url = `https://ordinals.com/r/children/${inscriptionId}/${page}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch children for ${inscriptionId}: ${res.status}`);
-    }
-
-    const data: PageResponse = await res.json();
-    allIds.push(...data.ids);
-    more = data.more;
-    page++;
-  }
-
-  return { ids: allIds, more };
 }
 
 /**
@@ -168,21 +129,32 @@ export async function fetchInscriptionInfo(inscriptionId: string): Promise<Inscr
 }
 
 /**
- * Build lightweight inscription summaries from IDs.
- * Fetches inscription info in parallel batches for the first batch.
+ * Batch fetch inscription summaries using POST /inscriptions endpoint.
+ * Accepts an array of inscription IDs and returns full inscription data for all.
  */
-async function buildInscriptionSummaries(ids: string[]): Promise<InscriptionSummary[]> {
+export async function fetchInscriptionSummariesBatch(ids: string[]): Promise<InscriptionSummary[]> {
   if (ids.length === 0) return [];
 
+  const uniqueIds = [...new Set(ids)];
   const summaries: InscriptionSummary[] = [];
 
-  const batchSize = 20;
-  for (let i = 0; i < Math.min(ids.length, 100); i += batchSize) {
-    const batch = ids.slice(i, i + batchSize);
-    const infos = await Promise.all(batch.map((id) => fetchInscriptionInfo(id)));
+  const batchSize = 100;
+  for (let i = 0; i < Math.min(uniqueIds.length, 200); i += batchSize) {
+    const batch = uniqueIds.slice(i, i + batchSize);
 
-    for (const info of infos) {
-      if (info) {
+    try {
+      const res = await fetch("https://ordinals.com/inscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(batch),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!res.ok) continue;
+
+      const infos: BatchInscriptionResponse[] = await res.json();
+
+      for (const info of infos) {
         summaries.push({
           id: info.id,
           number: info.number,
@@ -190,13 +162,22 @@ async function buildInscriptionSummaries(ids: string[]): Promise<InscriptionSumm
           timestamp: info.timestamp,
           contentType: info.content_type,
         });
-      } else {
-        summaries.push({
-          id: batch[infos.indexOf(info)],
-          number: 0,
-          output: "",
-          timestamp: 0,
-        });
+      }
+    } catch {
+      // If batch fails, fall back to individual fetches for this batch
+      const infos = await Promise.all(
+        batch.map((id) => fetchInscriptionInfo(id))
+      );
+      for (const info of infos) {
+        if (info) {
+          summaries.push({
+            id: info.id,
+            number: info.number,
+            output: info.output,
+            timestamp: info.timestamp,
+            contentType: info.content_type,
+          });
+        }
       }
     }
   }
@@ -205,40 +186,33 @@ async function buildInscriptionSummaries(ids: string[]): Promise<InscriptionSumm
 }
 
 /**
- * Fetch the full genealogy tree for an inscription.
- * Retrieves first page of parents and first page of children (up to 100 each).
+ * Fetch the full genealogy tree for an inscription using efficient batch endpoints.
+ * 1. Call GET /r/inscription/{id} once → get parents[] and children[] IDs directly
+ * 2. Call POST /inscriptions with all IDs → get all metadata in ONE batch
  * Times out after 15 seconds to avoid hanging the UI.
  */
-export async function getInscriptionGenealogy(
+export async function getInscriptionGenealogyV2(
   inscriptionId: string
 ): Promise<InscriptionGenealogy> {
   const fetchGenealogy = async () => {
-    const [parentResult, childResult] = await Promise.all([
-      (async () => {
-        try {
-          const ids = await fetchParentIds(inscriptionId);
-          const summaries = await buildInscriptionSummaries(ids);
-          return { summaries, hasMore: ids.length >= 100 };
-        } catch {
-          return { summaries: [], hasMore: false };
-        }
-      })(),
-      (async () => {
-        try {
-          const result = await fetchChildrenIds(inscriptionId);
-          const summaries = await buildInscriptionSummaries(result.ids);
-          return { summaries, hasMore: result.more };
-        } catch {
-          return { summaries: [], hasMore: false };
-        }
-      })(),
-    ]);
+    const info = await fetchInscriptionInfo(inscriptionId);
+
+    if (!info) {
+      return { parents: [], children: [], hasMoreParents: false, hasMoreChildren: false };
+    }
+
+    const allIds = [...info.parents, ...info.children];
+    const summaries = await fetchInscriptionSummariesBatch(allIds);
+
+    const parentIdsSet = new Set(info.parents);
+    const parents = summaries.filter((s) => parentIdsSet.has(s.id));
+    const children = summaries.filter((s) => !parentIdsSet.has(s.id));
 
     return {
-      parents: parentResult.summaries,
-      children: childResult.summaries,
-      hasMoreParents: parentResult.hasMore,
-      hasMoreChildren: childResult.hasMore,
+      parents,
+      children,
+      hasMoreParents: false,
+      hasMoreChildren: false,
     };
   };
 
@@ -247,6 +221,16 @@ export async function getInscriptionGenealogy(
   );
 
   return Promise.race([fetchGenealogy(), timeoutPromise]);
+}
+
+/**
+ * Fetch the full genealogy tree for an inscription.
+ * Delegates to V2 implementation.
+ */
+export async function getInscriptionGenealogy(
+  inscriptionId: string
+): Promise<InscriptionGenealogy> {
+  return getInscriptionGenealogyV2(inscriptionId);
 }
 
 /**
@@ -265,9 +249,11 @@ export async function isCollectionInscription(inscription: InscriptionData): Pro
   if (cached !== undefined) return cached;
 
   try {
-    const parentIds = await fetchParentIds(inscription.inscriptionId);
+    const info = await fetchInscriptionInfo(inscription.inscriptionId);
+    if (!info) return false;
+
     const configParents = new Set(config.collection.parentInscriptionIds);
-    const isMatch = parentIds.some((pid) => configParents.has(pid));
+    const isMatch = info.parents.some((pid) => configParents.has(pid));
 
     collectionCache.set(inscription.inscriptionId, isMatch);
     return isMatch;

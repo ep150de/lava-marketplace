@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getInscriptionPreviewUrl, type InscriptionSummary, type InscriptionGenealogy } from "@/lib/ordinals/inscription";
+import { getInscriptionPreviewUrl, type InscriptionSummary, type InscriptionGenealogy, fetchInscriptionSummariesBatch } from "@/lib/ordinals/inscription";
 import { fetchInscriptionChildrenPage } from "@/lib/ordinals/inscription";
 import { truncateInscriptionId } from "@/utils/format";
 import { Loader } from "@/components/crt";
@@ -56,7 +56,7 @@ export function GenealogyTree({ inscriptionId, initialGenealogy }: GenealogyTree
 
         const nextPage = localPage + 1;
         const result = await fetchInscriptionChildrenPage(childId, nextPage);
-        const newSummaries = await buildSummariesFromIds(result.ids);
+        const newSummaries = await fetchInscriptionSummariesBatch(result.ids);
 
         setChildTrees((prev) => {
           const current = prev[childId];
@@ -77,7 +77,7 @@ export function GenealogyTree({ inscriptionId, initialGenealogy }: GenealogyTree
       };
 
       const result = await fetchInscriptionChildrenPage(childId, 0);
-      const summaries = await buildSummariesFromIds(result.ids);
+      const summaries = await fetchInscriptionSummariesBatch(result.ids);
 
       setChildTrees((prev) => ({
         ...prev,
@@ -114,7 +114,7 @@ export function GenealogyTree({ inscriptionId, initialGenealogy }: GenealogyTree
     if (!genealogy || !genealogy.hasMoreParents) return;
     const nextPage = parentPage + 1;
     const result = await fetchInscriptionChildrenPage(inscriptionId, nextPage);
-    const newSummaries = await buildSummariesFromIds(result.ids);
+    const newSummaries = await fetchInscriptionSummariesBatch(result.ids);
     setGenealogy((prev) =>
       prev
         ? {
@@ -131,7 +131,7 @@ export function GenealogyTree({ inscriptionId, initialGenealogy }: GenealogyTree
     if (!genealogy || !genealogy.hasMoreChildren) return;
     const nextPage = childPage + 1;
     const result = await fetchInscriptionChildrenPage(inscriptionId, nextPage);
-    const newSummaries = await buildSummariesFromIds(result.ids);
+    const newSummaries = await fetchInscriptionSummariesBatch(result.ids);
     setGenealogy((prev) =>
       prev
         ? {
@@ -333,30 +333,4 @@ export function GenealogyTree({ inscriptionId, initialGenealogy }: GenealogyTree
       </div>
     </div>
   );
-}
-
-async function buildSummariesFromIds(ids: string[]): Promise<InscriptionSummary[]> {
-  if (ids.length === 0) return [];
-  const { fetchInscriptionInfo } = await import("@/lib/ordinals/inscription");
-  const batchSize = 20;
-  const summaries: InscriptionSummary[] = [];
-
-  for (let i = 0; i < Math.min(ids.length, 100); i += batchSize) {
-    const batch = ids.slice(i, i + batchSize);
-    const infos = await Promise.all(batch.map((id) => fetchInscriptionInfo(id)));
-
-    for (const info of infos) {
-      if (info) {
-        summaries.push({
-          id: info.id,
-          number: info.number,
-          output: info.output,
-          timestamp: info.timestamp,
-          contentType: info.content_type,
-        });
-      }
-    }
-  }
-
-  return summaries;
 }
