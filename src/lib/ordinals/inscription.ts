@@ -114,11 +114,11 @@ export async function fetchInscriptionChildrenPage(
 }
 
 /**
- * Fetch full inscription info from ordinals.com /r/inscription endpoint.
+ * Fetch full inscription info from ordinals.com /inscription endpoint.
  */
 export async function fetchInscriptionInfo(inscriptionId: string): Promise<InscriptionInfo | null> {
   try {
-    const url = `https://ordinals.com/r/inscription/${inscriptionId}`;
+    const url = `https://ordinals.com/inscription/${inscriptionId}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
 
     if (!res.ok) return null;
@@ -148,7 +148,10 @@ export async function fetchInscriptionSummariesBatch(ids: string[]): Promise<Ins
     try {
       const res = await fetch("https://ordinals.com/inscriptions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
         body: JSON.stringify(batch),
         signal: AbortSignal.timeout(15000),
       });
@@ -274,25 +277,24 @@ export function clearCollectionCache(): void {
 /**
  * Fetch all collection inscriptions for an address.
  * Fetches all inscriptions, then validates each against the collection
- * parent IDs using batch API call.
+ * parent IDs using ordinals.com provenance data.
  */
 export async function getCollectionInscriptionsForAddress(
   address: string
 ): Promise<InscriptionData[]> {
   const all = await fetchAllInscriptionsForAddress(address);
-  if (all.length === 0) return [];
 
-  const ids = all.map((i) => i.inscriptionId);
-  const summaries = await fetchInscriptionSummariesBatch(ids);
-
-  const configParents = new Set(config.collection.parentInscriptionIds);
-  const collectionIds = new Set(
-    summaries
-      .filter((s) => s.parents.some((p) => configParents.has(p)))
-      .map((s) => s.id)
+  // Validate collection membership in parallel
+  const checks = await Promise.all(
+    all.map(async (inscription) => ({
+      inscription,
+      isCollection: await isCollectionInscription(inscription),
+    }))
   );
 
-  return all.filter((i) => collectionIds.has(i.inscriptionId));
+  return checks
+    .filter((c) => c.isCollection)
+    .map((c) => c.inscription);
 }
 
 /**
