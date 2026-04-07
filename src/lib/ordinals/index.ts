@@ -10,6 +10,7 @@ export {
   parseOutput,
   getInscriptionContentUrl,
   getInscriptionPreviewUrl,
+  getInscriptionGenealogy,
 } from "./inscription";
 export {
   getCollectionMetadata,

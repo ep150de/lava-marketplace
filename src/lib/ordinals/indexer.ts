@@ -22,6 +22,8 @@ export interface InscriptionData {
   offset: number;
   preview?: string;
   contentUrl?: string;
+  parentIds?: string[];
+  childIds?: string[];
 }
 
 export interface InscriptionUtxo {

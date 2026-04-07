@@ -7,3 +7,4 @@ export { default as PriceDisplay } from "./PriceDisplay";
 export { default as TimelockForm } from "./TimelockForm";
 export { default as TimelockCard } from "./TimelockCard";
 export { default as UnlockModal } from "./UnlockModal";
+export { GenealogyTree } from "./GenealogyTree";

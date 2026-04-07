@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Loader } from "@/components/crt";
-import { BuyModal, ListingForm } from "@/components/marketplace";
+import { BuyModal, ListingForm, GenealogyTree } from "@/components/marketplace";
 import { useListings } from "@/hooks/useListings";
 import { useInscriptions } from "@/hooks/useInscriptions";
 import { useWallet } from "@/hooks/useWallet";
-import { getInscriptionDetails, getInscriptionPreviewUrl } from "@/lib/ordinals";
+import { getInscriptionDetails, getInscriptionPreviewUrl, getInscriptionGenealogy } from "@/lib/ordinals";
+import type { InscriptionGenealogy } from "@/lib/ordinals/inscription";
 import type { InscriptionData } from "@/lib/ordinals";
 import type { MarketScope } from "@/lib/nostr";
 import { formatBtc, formatSats, truncateAddress, truncateInscriptionId, formatTimeAgo } from "@/utils/format";
@@ -28,6 +29,7 @@ export default function ItemDetailPage() {
   const [buyModalOpen, setBuyModalOpen] = useState(false);
   const [listFormOpen, setListFormOpen] = useState(false);
   const [utxoValid, setUtxoValid] = useState<boolean | null>(null);
+  const [genealogy, setGenealogy] = useState<InscriptionGenealogy | null>(null);
 
   const listing = getListingForInscription(inscriptionId);
   const isOwned = inscriptions.some((i) => i.inscriptionId === inscriptionId);
@@ -64,6 +66,22 @@ export default function ItemDetailPage() {
       verifyListing(listing).then(setUtxoValid);
     }
   }, [listing, verifyListing]);
+
+  // Fetch genealogy
+  useEffect(() => {
+    if (!inscriptionId) return;
+    let cancelled = false;
+    async function fetchGenealogy() {
+      try {
+        const data = await getInscriptionGenealogy(inscriptionId);
+        if (!cancelled) setGenealogy(data);
+      } catch {
+        // silently fail — genealogy is optional
+      }
+    }
+    fetchGenealogy();
+    return () => { cancelled = true; };
+  }, [inscriptionId]);
 
   if (loading) {
     return (
@@ -248,6 +266,9 @@ export default function ItemDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Genealogy */}
+          <GenealogyTree inscriptionId={inscriptionId} initialGenealogy={genealogy} />
 
           {/* Collection info */}
           <div className="border border-crt-border/30 p-3 text-xs">
