@@ -21,6 +21,8 @@ export interface InscriptionSummary {
   output: string;
   timestamp: number;
   contentType?: string;
+  parents: string[];
+  children: string[];
 }
 
 /** Full inscription info from ordinals.com /r/inscription endpoint */
@@ -131,15 +133,16 @@ export async function fetchInscriptionInfo(inscriptionId: string): Promise<Inscr
 /**
  * Batch fetch inscription summaries using POST /inscriptions endpoint.
  * Accepts an array of inscription IDs and returns full inscription data for all.
+ * Uses pagination of 25 per page to handle large numbers of inscriptions.
  */
 export async function fetchInscriptionSummariesBatch(ids: string[]): Promise<InscriptionSummary[]> {
   if (ids.length === 0) return [];
 
   const uniqueIds = [...new Set(ids)];
   const summaries: InscriptionSummary[] = [];
+  const batchSize = 25;
 
-  const batchSize = 100;
-  for (let i = 0; i < Math.min(uniqueIds.length, 200); i += batchSize) {
+  for (let i = 0; i < uniqueIds.length; i += batchSize) {
     const batch = uniqueIds.slice(i, i + batchSize);
 
     try {
@@ -161,24 +164,14 @@ export async function fetchInscriptionSummariesBatch(ids: string[]): Promise<Ins
           output: info.output,
           timestamp: info.timestamp,
           contentType: info.content_type,
+          parents: info.parents || [],
+          children: info.children || [],
         });
       }
     } catch {
-      // If batch fails, fall back to individual fetches for this batch
-      const infos = await Promise.all(
-        batch.map((id) => fetchInscriptionInfo(id))
-      );
-      for (const info of infos) {
-        if (info) {
-          summaries.push({
-            id: info.id,
-            number: info.number,
-            output: info.output,
-            timestamp: info.timestamp,
-            contentType: info.content_type,
-          });
-        }
-      }
+      // If batch fails, fall back to recursive batch call with smaller batches
+      const partial = await fetchInscriptionSummariesBatch(batch);
+      summaries.push(...partial);
     }
   }
 
@@ -238,9 +231,13 @@ export async function getInscriptionGenealogy(
  * that at least one of its parent inscriptions is in the configured parent IDs.
  *
  * Results are cached in memory to avoid redundant API calls.
+ * If preFetchedParents is provided, skips the API call and uses the provided data.
  * Returns false on error (safe default — reject unverified inscriptions).
  */
-export async function isCollectionInscription(inscription: InscriptionData): Promise<boolean> {
+export async function isCollectionInscription(
+  inscription: InscriptionData,
+  preFetchedParents?: string[]
+): Promise<boolean> {
   // If no parent IDs configured, we can't filter by collection
   if (config.collection.parentInscriptionIds.length === 0) return true;
 
@@ -249,11 +246,14 @@ export async function isCollectionInscription(inscription: InscriptionData): Pro
   if (cached !== undefined) return cached;
 
   try {
-    const info = await fetchInscriptionInfo(inscription.inscriptionId);
-    if (!info) return false;
+    const parents = preFetchedParents !== undefined
+      ? preFetchedParents
+      : await fetchInscriptionInfo(inscription.inscriptionId).then((info) => info?.parents ?? null);
+
+    if (!parents) return false;
 
     const configParents = new Set(config.collection.parentInscriptionIds);
-    const isMatch = info.parents.some((pid) => configParents.has(pid));
+    const isMatch = parents.some((pid) => configParents.has(pid));
 
     collectionCache.set(inscription.inscriptionId, isMatch);
     return isMatch;
@@ -274,24 +274,25 @@ export function clearCollectionCache(): void {
 /**
  * Fetch all collection inscriptions for an address.
  * Fetches all inscriptions, then validates each against the collection
- * parent IDs using ordinals.com provenance data.
+ * parent IDs using batch API call.
  */
 export async function getCollectionInscriptionsForAddress(
   address: string
 ): Promise<InscriptionData[]> {
   const all = await fetchAllInscriptionsForAddress(address);
+  if (all.length === 0) return [];
 
-  // Validate collection membership in parallel
-  const checks = await Promise.all(
-    all.map(async (inscription) => ({
-      inscription,
-      isCollection: await isCollectionInscription(inscription),
-    }))
+  const ids = all.map((i) => i.inscriptionId);
+  const summaries = await fetchInscriptionSummariesBatch(ids);
+
+  const configParents = new Set(config.collection.parentInscriptionIds);
+  const collectionIds = new Set(
+    summaries
+      .filter((s) => s.parents.some((p) => configParents.has(p)))
+      .map((s) => s.id)
   );
 
-  return checks
-    .filter((c) => c.isCollection)
-    .map((c) => c.inscription);
+  return all.filter((i) => collectionIds.has(i.inscriptionId));
 }
 
 /**

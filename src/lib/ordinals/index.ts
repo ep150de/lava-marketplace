@@ -12,6 +12,7 @@ export {
   getInscriptionPreviewUrl,
   getInscriptionGenealogy,
   getInscriptionGenealogyV2,
+  fetchInscriptionSummariesBatch,
 } from "./inscription";
 export {
   getCollectionMetadata,

@@ -6,8 +6,10 @@ import {
   getCollectionInscriptionsForAddress,
   getInscriptionsForAddress,
   isCollectionInscription,
+  fetchInscriptionSummariesBatch,
 } from "@/lib/ordinals";
 import type { InscriptionData } from "@/lib/ordinals";
+import config from "../../marketplace.config";
 
 export type InscriptionScope = "lava-lamps" | "all-ordinals" | "all";
 
@@ -40,16 +42,18 @@ export function useInscriptions(scope: InscriptionScope = "lava-lamps") {
         if (scope === "all") {
           results = allInscriptions;
         } else {
-          const checks = await Promise.all(
-            allInscriptions.map(async (inscription) => ({
-              inscription,
-              isCollection: await isCollectionInscription(inscription),
-            }))
+          // "all-ordinals" - filter OUT collection items using batch API
+          const ids = allInscriptions.map((i) => i.inscriptionId);
+          const summaries = await fetchInscriptionSummariesBatch(ids);
+
+          const configParents = new Set(config.collection.parentInscriptionIds);
+          const collectionIds = new Set(
+            summaries
+              .filter((s) => s.parents?.some((p) => configParents.has(p)))
+              .map((s) => s.id)
           );
 
-          results = checks
-            .filter((entry) => !entry.isCollection)
-            .map((entry) => entry.inscription);
+          results = allInscriptions.filter((i) => !collectionIds.has(i.inscriptionId));
         }
       }
 
